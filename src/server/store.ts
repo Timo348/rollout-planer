@@ -226,7 +226,38 @@ export class StateStore {
     });
   }
 
-  async getBootstrap(currentUserId: string): Promise<BootstrapResponse> {
+  async deleteUser(id: string): Promise<AppUser> {
+    return this.enqueue(async () => {
+      if (this.cleanupState()) await this.persist();
+      const index = this.state.users.findIndex((entry) => entry.id === id);
+      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+
+      const removed = this.state.users[index]!;
+      const timestamp = this.now().toISOString();
+      this.state.users.splice(index, 1);
+
+      for (const [month, counts] of Object.entries(this.state.monthlyCompletions)) {
+        if (counts[id] !== undefined) delete counts[id];
+        if (Object.keys(counts).length === 0) delete this.state.monthlyCompletions[month];
+      }
+
+      this.state.appointments = this.state.appointments.map((appointment) =>
+        appointment.assigneeId === id
+          ? {
+              ...appointment,
+              assigneeId: null,
+              updatedAt: timestamp,
+              version: appointment.version + 1,
+            }
+          : appointment,
+      );
+
+      await this.persist();
+      return structuredClone(removed);
+    });
+  }
+
+  async getBootstrap(currentUserId: string): Promise<Omit<BootstrapResponse, "permissions">> {
     return this.enqueue(async () => {
       const changed = this.cleanupState();
       if (changed) await this.persist();

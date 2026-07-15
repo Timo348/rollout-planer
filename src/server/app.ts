@@ -5,8 +5,12 @@ import helmet from "@fastify/helmet";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
-import type { AppUser } from "../shared/contracts.js";
-import { AuthService, OAUTH_FLOW_COOKIE, SESSION_COOKIE } from "./auth.js";
+import {
+  AuthService,
+  OAUTH_FLOW_COOKIE,
+  SESSION_COOKIE,
+  type SessionPrincipal,
+} from "./auth.js";
 import {
   AVATAR_MIME_TYPES,
   AvatarStore,
@@ -25,7 +29,7 @@ import {
 
 declare module "fastify" {
   interface FastifyRequest {
-    currentUser: AppUser | null;
+    currentPrincipal: SessionPrincipal | null;
   }
 }
 
@@ -126,14 +130,26 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     crossOriginEmbedderPolicy: false,
   });
 
-  app.decorateRequest("currentUser", null);
+  app.decorateRequest("currentPrincipal", null);
+
+  const readActivePrincipal = async (request: FastifyRequest): Promise<SessionPrincipal | null> => {
+    const principal = await auth.readSession(request.cookies[SESSION_COOKIE]);
+    if (!principal) return null;
+    try {
+      await store.getUser(principal.user.id);
+      return principal;
+    } catch (error) {
+      if (error instanceof NotFoundError) return null;
+      throw error;
+    }
+  };
 
   const authenticate = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = await auth.readSession(request.cookies[SESSION_COOKIE]);
-    if (!user) {
+    const principal = await readActivePrincipal(request);
+    if (!principal) {
       return reply.code(401).send({ error: "unauthorized", message: "Bitte zuerst anmelden." });
     }
-    request.currentUser = user;
+    request.currentPrincipal = principal;
   };
 
   const verifyOrigin = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -143,13 +159,22 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     }
   };
 
+  const requireUserAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!request.currentPrincipal?.permissions.manageUsers) {
+      return reply.code(403).send({
+        error: "forbidden",
+        message: "Für die Benutzerverwaltung fehlt die Berechtigung.",
+      });
+    }
+  };
+
   app.get("/health", async () => ({ status: "ok", time: new Date().toISOString() }));
 
   app.get("/api/session", async (request) => {
-    const user = await auth.readSession(request.cookies[SESSION_COOKIE]);
+    const principal = await readActivePrincipal(request);
     return {
-      authenticated: Boolean(user),
-      user,
+      authenticated: Boolean(principal),
+      user: principal?.user ?? null,
       devLoginEnabled: config.devLoginEnabled,
       oidcEnabled: Boolean(config.oidc),
     };
@@ -173,12 +198,12 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
   app.get("/auth/callback", async (request, reply) => {
     try {
       const callbackUrl = new URL(request.raw.url ?? "/auth/callback", config.appBaseUrl);
-      const user = await auth.completeAuthorization(
+      const principal = await auth.completeAuthorization(
         callbackUrl,
         request.cookies[OAUTH_FLOW_COOKIE],
       );
-      await store.upsertUser(user);
-      const session = await auth.createSession(user);
+      await store.upsertUser(principal.user);
+      const session = await auth.createSession(principal);
       reply.clearCookie(OAUTH_FLOW_COOKIE, { ...cookieOptions(config), path: "/auth" });
       reply.setCookie(SESSION_COOKIE, session, {
         ...cookieOptions(config),
@@ -196,14 +221,14 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     if (!config.devLoginEnabled) {
       return reply.code(404).send({ error: "not_found", message: "Nicht gefunden." });
     }
-    const user = auth.createDevUser();
-    await store.upsertUser(user);
-    const session = await auth.createSession(user);
+    const principal = auth.createDevUser();
+    await store.upsertUser(principal.user);
+    const session = await auth.createSession(principal);
     reply.setCookie(SESSION_COOKIE, session, {
       ...cookieOptions(config),
       maxAge: config.sessionTtlHours * 60 * 60,
     });
-    return { user };
+    return { user: principal.user };
   });
 
   app.post("/api/auth/logout", { preHandler: [verifyOrigin] }, async (_request, reply) => {
@@ -211,8 +236,33 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     return reply.code(204).send();
   });
 
-  app.get("/api/bootstrap", { preHandler: [authenticate] }, async (request) =>
-    store.getBootstrap(request.currentUser!.id),
+  app.get("/api/bootstrap", { preHandler: [authenticate] }, async (request) => ({
+    ...await store.getBootstrap(request.currentPrincipal!.user.id),
+    permissions: request.currentPrincipal!.permissions,
+  }));
+
+  app.delete(
+    "/api/users/:id",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request, reply) => {
+      const id = z.string().min(1).parse((request.params as { id?: string }).id);
+      if (id === request.currentPrincipal!.user.id) {
+        return reply.code(409).send({
+          error: "conflict",
+          message: "Das eigene Benutzerkonto kann nicht gelöscht werden.",
+        });
+      }
+
+      const removed = await store.deleteUser(id);
+      if (removed.avatar) {
+        try {
+          await avatars.delete(removed.avatar.key);
+        } catch (error) {
+          request.log.warn({ err: error, userId: id }, "Profilbild des gelöschten Benutzers konnte nicht entfernt werden.");
+        }
+      }
+      return reply.code(204).send();
+    },
   );
 
   app.get("/api/users/:id/avatar", { preHandler: [authenticate] }, async (request, reply) => {
@@ -245,10 +295,10 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
         return reply.code(400).send({ error: "validation", message: "Die Datei ist kein gültiges Bild im ausgewählten Format." });
       }
 
-      const previous = await store.getUser(request.currentUser!.id);
+      const previous = await store.getUser(request.currentPrincipal!.user.id);
       const key = await avatars.write(request.body);
       try {
-        const user = await store.setUserAvatar(request.currentUser!.id, {
+        const user = await store.setUserAvatar(request.currentPrincipal!.user.id, {
           key,
           mimeType,
           updatedAt: new Date().toISOString(),
@@ -266,8 +316,8 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     "/api/users/me/avatar",
     { preHandler: [authenticate, verifyOrigin] },
     async (request, reply) => {
-      const previous = await store.getUser(request.currentUser!.id);
-      const user = await store.setUserAvatar(request.currentUser!.id, null);
+      const previous = await store.getUser(request.currentPrincipal!.user.id);
+      const user = await store.setUserAvatar(request.currentPrincipal!.user.id, null);
       if (previous.avatar) await avatars.delete(previous.avatar.key);
       return reply.send({ user });
     },
@@ -278,7 +328,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     { preHandler: [authenticate, verifyOrigin] },
     async (request, reply) => {
       const payload = createBatchSchema.parse(request.body);
-      const created = await store.createBatch(payload.date, payload.slots, request.currentUser!.id);
+      const created = await store.createBatch(payload.date, payload.slots, request.currentPrincipal!.user.id);
       return reply.code(201).send({ appointments: created });
     },
   );
@@ -289,7 +339,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     async (request) => {
       const id = z.string().min(1).parse((request.params as { id?: string }).id);
       const payload = updateSchema.parse(request.body);
-      const appointment = (await store.getBootstrap(request.currentUser!.id)).appointments.find(
+      const appointment = (await store.getBootstrap(request.currentPrincipal!.user.id)).appointments.find(
         (entry) => entry.id === id,
       );
       if (!appointment) throw new NotFoundError();

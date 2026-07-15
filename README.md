@@ -6,7 +6,8 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 
 - Authentik-Anmeldung über OAuth2/OpenID Connect mit Authorization Code, PKCE, `state` und `nonce`
 - optionaler, ausschließlich per Entwicklungsmodus freischaltbarer Dev-Login
-- keine Rollen: Jeder angemeldete Benutzer besitzt dieselben Rechte
+- alle angemeldeten Benutzer dürfen Termine planen und verwalten
+- lokale Benutzerverwaltung für Mitglieder der Authentik-Gruppe `rollout-planner-admin`
 - eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 20 MB) mit Initialen als Fallback
 - fünf Planungstage ab heute; Wochenenden und Feiertage werden bei den Folgetagen übersprungen
 - Mitarbeiter des Monats anhand vergangener, zugewiesener Termine des zuletzt vollständig abgeschlossenen Kalendermonats, dauerhaft in der JSON-Datei gezählt
@@ -42,8 +43,9 @@ Im Produktionsmodus bleibt der Dev-Endpunkt gesperrt, selbst wenn versehentlich 
 
 1. In Authentik eine Anwendung mit einem OAuth2/OIDC-Provider erstellen.
 2. Als Redirect-URI exakt `https://<interne-app-adresse>/auth/callback` hinterlegen.
-3. Die Scopes `openid`, `profile` und `email` freigeben.
-4. `.env.example` nach `.env` kopieren und mindestens diese Werte setzen:
+3. Die Scopes `openid`, `profile` und `email` freigeben. Das `profile`-Mapping muss den Claim `groups` als Liste im ID-Token ausgeben.
+4. In Authentik die Gruppe `rollout-planner-admin` anlegen und alle Personen hinzufügen, die Benutzer aus dem Rollout Planer entfernen dürfen.
+5. `.env.example` nach `.env` kopieren und mindestens diese Werte setzen:
 
 ```dotenv
 APP_MODE=production
@@ -56,10 +58,18 @@ OIDC_CLIENT_SECRET=<client-secret>
 DEV_LOGIN_ENABLED=false
 ```
 
-5. Die Callback-Adresse in Authentik und `APP_BASE_URL` müssen einschließlich Schema und Host zusammenpassen.
-6. Image laden und Container starten: `docker compose pull` und danach `docker compose up -d`.
+6. Die Callback-Adresse in Authentik und `APP_BASE_URL` müssen einschließlich Schema und Host zusammenpassen.
+7. Image laden und Container starten: `docker compose pull` und danach `docker compose up -d`.
 
 Authentik selbst ist nicht Bestandteil dieser Compose-Datei; die Anwendung verbindet sich mit der bereits vorhandenen internen Instanz.
+
+## Benutzerverwaltung
+
+Mitglieder der Authentik-Gruppe `rollout-planner-admin` sehen neben „Termine erstellen“ die Benutzerverwaltung. Die Berechtigung wird aus dem verifizierten Gruppen-Claim abgeleitet, in der signierten App-Sitzung gespeichert und zusätzlich bei jeder Löschanfrage serverseitig geprüft. Nach dem Update oder einer Gruppenänderung müssen sich betroffene Administratoren einmal ab- und wieder anmelden.
+
+„Benutzer löschen“ entfernt ausschließlich das lokale Profil aus dem Rollout Planer. Dabei werden das Profilbild und die Monatsstatistik der Person entfernt; ihre noch zugewiesenen Termine bleiben bestehen und werden wieder frei. Das Authentik-Konto selbst wird nicht verändert. Solange das Konto in Authentik weiterhin Zugriff besitzt, kann sich die Person erneut anmelden und wird dann lokal wieder angelegt. Das eigene aktuell angemeldete Profil kann nicht gelöscht werden.
+
+Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich aktivierten Entwicklungsmodus, damit der Ablauf lokal getestet werden kann. Im Produktionsmodus bleibt dieser Zugang vollständig deaktiviert.
 
 ## Datenspeicherung
 

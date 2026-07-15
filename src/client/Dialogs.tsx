@@ -393,6 +393,8 @@ export function ConfirmDialog({
   message,
   destructive = false,
   busy = false,
+  error = "",
+  confirmLabel = "Bestätigen",
   onCancel,
   onConfirm,
 }: {
@@ -400,6 +402,8 @@ export function ConfirmDialog({
   message: string;
   destructive?: boolean;
   busy?: boolean;
+  error?: string;
+  confirmLabel?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -408,7 +412,8 @@ export function ConfirmDialog({
       <section className="modal modal--confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
         <div className={destructive ? "confirm-icon confirm-icon--danger" : "confirm-icon"}>{destructive ? <Trash2 size={23} /> : <UserRound size={23} />}</div>
         <h2 id="confirm-title">{title}</h2><p>{message}</p>
-        <div className="confirm-actions"><button className="button button--ghost" type="button" disabled={busy} onClick={onCancel}>Abbrechen</button><button className={destructive ? "button button--danger" : "button button--primary"} type="button" disabled={busy} onClick={onConfirm}>{busy && <LoaderCircle className="spin" size={17} />}Bestätigen</button></div>
+        {error && <div className="alert alert--error confirm-error" role="alert">{error}</div>}
+        <div className="confirm-actions"><button className="button button--ghost" type="button" disabled={busy} onClick={onCancel}>Abbrechen</button><button className={destructive ? "button button--danger" : "button button--primary"} type="button" disabled={busy} onClick={onConfirm}>{busy && <LoaderCircle className="spin" size={17} />}{confirmLabel}</button></div>
       </section>
     </div>
   );

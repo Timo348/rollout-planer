@@ -16,6 +16,7 @@ import {
   Trash2,
   UserCheck,
   UserRoundX,
+  UsersRound,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
@@ -259,12 +260,112 @@ function AppointmentCard({
   );
 }
 
+function UserManagementDialog({
+  users,
+  currentUser,
+  onClose,
+  onDelete,
+}: {
+  users: AppUser[];
+  currentUser: AppUser;
+  onClose: () => void;
+  onDelete: (user: AppUser) => Promise<void>;
+}) {
+  const [pendingUser, setPendingUser] = useState<AppUser | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const orderedUsers = [...users].sort((left, right) => {
+    if (left.id === currentUser.id) return -1;
+    if (right.id === currentUser.id) return 1;
+    return left.displayName.localeCompare(right.displayName, "de");
+  });
+
+  const askDelete = (user: AppUser) => {
+    setDeleteError("");
+    setPendingUser(user);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingUser) return;
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await onDelete(pendingUser);
+      setPendingUser(null);
+    } catch (caught) {
+      setDeleteError(caught instanceof Error ? caught.message : "Benutzer konnte nicht gelöscht werden.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !deleteBusy && onClose()}>
+        <section className="modal modal--user-management" role="dialog" aria-modal="true" aria-labelledby="user-management-title">
+          <header className="modal__header">
+            <div><p className="eyebrow">Administration</p><h2 id="user-management-title">Benutzerverwaltung</h2></div>
+            <button className="icon-button" type="button" disabled={deleteBusy} onClick={onClose} aria-label="Dialog schließen"><X size={20} /></button>
+          </header>
+          <div className="modal__body modal__body--user-management">
+            <div className="user-management__intro">
+              <div><strong>Lokale Benutzer</strong><small>{users.length} {users.length === 1 ? "Eintrag" : "Einträge"}</small></div>
+              <p>Hier entfernst du nur Daten aus dem Rollout Planer. Authentik-Konten bleiben bestehen.</p>
+            </div>
+            <div className="user-management__list">
+              {orderedUsers.map((user) => {
+                const isCurrentUser = user.id === currentUser.id;
+                return (
+                  <div className="user-management__row" key={user.id}>
+                    <UserAvatar user={user} className="avatar avatar--user-management" />
+                    <div className="user-management__identity">
+                      <span className="user-management__name"><strong>{user.displayName}</strong>{isCurrentUser && <small>Du</small>}</span>
+                      <span>{user.username}</span>
+                    </div>
+                    {isCurrentUser ? (
+                      <span className="user-management__self">Aktuell angemeldet</span>
+                    ) : (
+                      <button className="user-management__delete" type="button" disabled={deleteBusy} onClick={() => askDelete(user)} aria-label={`${user.displayName} löschen`}>
+                        <Trash2 size={15} />Löschen
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <footer className="modal__footer">
+            <span className="modal__summary">Das eigene Profil kann nicht gelöscht werden.</span>
+            <button className="button button--ghost" type="button" disabled={deleteBusy} onClick={onClose}>Schließen</button>
+          </footer>
+        </section>
+      </div>
+      {pendingUser && (
+        <ConfirmDialog
+          title="Benutzer löschen?"
+          message={`Das lokale App-Profil von „${pendingUser.displayName}“ inklusive Profilbild und Statistik wird gelöscht. Zugewiesene Termine werden wieder frei. Das Authentik-Konto bleibt bestehen und eine erneute Anmeldung ist möglich.`}
+          destructive
+          busy={deleteBusy}
+          error={deleteError}
+          confirmLabel="Benutzer löschen"
+          onCancel={() => {
+            setDeleteError("");
+            setPendingUser(null);
+          }}
+          onConfirm={() => void confirmDelete()}
+        />
+      )}
+    </>
+  );
+}
+
 export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; onLoggedOut: () => void }) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [userManagementOpen, setUserManagementOpen] = useState(false);
   const [createInitialSlotKey, setCreateInitialSlotKey] = useState<string | null>(null);
   const [editing, setEditing] = useState<Appointment | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -546,6 +647,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
           <div><p className="eyebrow">Windows 11 Rollout</p><h1>Terminübersicht</h1></div>
           <div className="workspace-header__actions">
             <button className="icon-button refresh-button" type="button" onClick={() => void load(true)} disabled={refreshing} aria-label="Ansicht aktualisieren" title="Aktualisieren"><RefreshCw className={refreshing ? "spin" : ""} size={17} /></button>
+            {data.permissions.manageUsers && <button className="button button--ghost button--manage-users" type="button" onClick={() => setUserManagementOpen(true)}><UsersRound size={17} />Benutzerverwaltung</button>}
             <button className="button button--primary button--create" type="button" onClick={() => openCreateDialog()}><Plus size={18} />Termine erstellen</button>
           </div>
         </header>
@@ -585,6 +687,16 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       </main>
 
       {createOpen && <CreateDialog initialDate={selectedDate} initialSlotKey={createInitialSlotKey} dates={data.dates} fixedSlots={data.fixedSlots} maximum={data.limits.maxAppointmentsPerSlot} onClose={() => setCreateOpen(false)} onCreate={async (payload) => { await api.createAppointments(payload); await load(true); setCreateOpen(false); showToast("Termine wurden erstellt."); }} />}
+      {userManagementOpen && data.permissions.manageUsers && <UserManagementDialog users={data.users} currentUser={data.currentUser} onClose={() => setUserManagementOpen(false)} onDelete={async (user) => {
+        try {
+          await api.deleteUser(user.id);
+          await load(true);
+          showToast(`${user.displayName} wurde aus dem Rollout Planer entfernt.`);
+        } catch (caught) {
+          if (caught instanceof ApiError && caught.status === 401) onLoggedOut();
+          throw caught;
+        }
+      }} />}
       {editing && <EditDialog appointment={editing} users={data.users} onClose={() => setEditing(null)} onSave={async (payload) => { await mutate(editing, () => api.updateAppointment(editing.id, payload), "Termin gespeichert."); setEditing(null); }} />}
       {confirm && <ConfirmDialog title={confirm.title} message={confirm.message} destructive={confirm.destructive} busy={confirmBusy} onCancel={() => setConfirm(null)} onConfirm={() => void runConfirmed()} />}
       {toast && <div className={`toast toast--${toast.tone}`} role="status">{toast.tone === "success" ? <Check size={17} /> : <X size={17} />}{toast.message}</div>}

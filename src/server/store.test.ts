@@ -262,4 +262,52 @@ describe("StateStore", () => {
     const result = await productionStore.getBootstrap("oidc:alice");
     expect(result.employeeOfMonth.completedCount).toBe(0);
   });
+
+  it("löscht einen Benutzer samt Monatswerten und hebt seine Zuweisungen atomar auf", async () => {
+    const file = await temporaryFile();
+    const alice = user("oidc:alice");
+    const bob = { ...user("oidc:bob"), username: "bob", displayName: "Bob Beispiel" };
+    await writeFile(file, JSON.stringify({
+      schemaVersion: 3,
+      users: [alice, bob],
+      appointments: [{
+        id: "assigned-to-bob",
+        date: "2026-07-15",
+        startTime: "10:00",
+        endTime: "11:00",
+        name: "Kunde",
+        assigneeId: "oidc:bob",
+        createdBy: "oidc:bob",
+        createdAt: "2026-07-14T08:00:00.000Z",
+        updatedAt: "2026-07-14T08:00:00.000Z",
+        version: 1,
+      }],
+      monthlyCompletions: {
+        "2026-06": { "oidc:alice": 1, "oidc:bob": 4 },
+      },
+    }), "utf8");
+
+    const store = new StateStore(file, () => new Date("2026-07-15T09:30:00.000Z"), false);
+    await store.initialize();
+    const removed = await store.deleteUser("oidc:bob");
+    const snapshot = await store.getBootstrap("oidc:alice");
+
+    expect(removed).toMatchObject({ id: "oidc:bob", username: "bob" });
+    await expect(store.getUser("oidc:bob")).rejects.toThrow("Benutzer wurde nicht gefunden");
+    expect(snapshot.users.map((entry) => entry.id)).toEqual(["oidc:alice"]);
+    expect(snapshot.appointments).toEqual([
+      expect.objectContaining({
+        id: "assigned-to-bob",
+        assigneeId: null,
+        createdBy: "oidc:bob",
+        updatedAt: "2026-07-15T09:30:00.000Z",
+        version: 2,
+      }),
+    ]);
+
+    const persisted = JSON.parse(await readFile(file, "utf8")) as {
+      monthlyCompletions: Record<string, Record<string, number>>;
+    };
+    expect(persisted.monthlyCompletions).toEqual({ "2026-06": { "oidc:alice": 1 } });
+  });
 });

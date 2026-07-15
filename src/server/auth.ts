@@ -1,10 +1,16 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, SignJWT, type JWTPayload } from "jose";
-import type { AppUser } from "../shared/contracts.js";
+import type { AppPermissions, AppUser } from "../shared/contracts.js";
 import type { AppConfig, OidcConfig } from "./config.js";
 
 export const SESSION_COOKIE = "rollout_session";
 export const OAUTH_FLOW_COOKIE = "rollout_oauth_flow";
+export const USER_ADMIN_GROUP = "rollout-planner-admin";
+
+export interface SessionPrincipal {
+  user: AppUser;
+  permissions: AppPermissions;
+}
 
 interface OidcMetadata {
   issuer: string;
@@ -39,6 +45,14 @@ function requiredString(payload: JWTPayload, key: string): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+export function permissionsFromClaims(payload: JWTPayload): AppPermissions {
+  const groups = payload.groups;
+  const validGroups = Array.isArray(groups) && groups.every((group) => typeof group === "string")
+    ? groups
+    : [];
+  return { manageUsers: validGroups.includes(USER_ADMIN_GROUP) };
+}
+
 export class AuthService {
   private readonly key: Uint8Array;
   private readonly issuer: string;
@@ -49,12 +63,14 @@ export class AuthService {
     this.issuer = `${config.appBaseUrl}/`;
   }
 
-  async createSession(user: AppUser): Promise<string> {
+  async createSession(principal: SessionPrincipal): Promise<string> {
+    const { user, permissions } = principal;
     return new SignJWT({
       username: user.username,
       displayName: user.displayName,
       email: user.email,
       source: user.source,
+      permissions: { manageUsers: permissions.manageUsers },
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setSubject(user.id)
@@ -65,7 +81,7 @@ export class AuthService {
       .sign(this.key);
   }
 
-  async readSession(token: string | undefined): Promise<AppUser | null> {
+  async readSession(token: string | undefined): Promise<SessionPrincipal | null> {
     if (!token) return null;
     try {
       const { payload } = await jwtVerify(token, this.key, {
@@ -76,26 +92,39 @@ export class AuthService {
       if (!payload.sub) return null;
       const source = payload.source === "dev" ? "dev" : "oidc";
       if (source === "dev" && !this.config.devLoginEnabled) return null;
+      const permissions = payload.permissions;
       return {
-        id: payload.sub,
-        username: requiredString(payload, "username") ?? payload.sub,
-        displayName: requiredString(payload, "displayName") ?? payload.sub,
-        email: requiredString(payload, "email"),
-        source,
-        lastSeenAt: new Date().toISOString(),
+        user: {
+          id: payload.sub,
+          username: requiredString(payload, "username") ?? payload.sub,
+          displayName: requiredString(payload, "displayName") ?? payload.sub,
+          email: requiredString(payload, "email"),
+          source,
+          lastSeenAt: new Date().toISOString(),
+        },
+        permissions: {
+          manageUsers:
+            typeof permissions === "object" &&
+            permissions !== null &&
+            !Array.isArray(permissions) &&
+            (permissions as Record<string, unknown>).manageUsers === true,
+        },
       };
     } catch {
       return null;
     }
   }
 
-  createDevUser(): AppUser {
+  createDevUser(): SessionPrincipal {
     return {
-      id: `dev:${this.config.devLoginUsername}`,
-      username: this.config.devLoginUsername,
-      displayName: this.config.devLoginName,
-      source: "dev",
-      lastSeenAt: new Date().toISOString(),
+      user: {
+        id: `dev:${this.config.devLoginUsername}`,
+        username: this.config.devLoginUsername,
+        displayName: this.config.devLoginName,
+        source: "dev",
+        lastSeenAt: new Date().toISOString(),
+      },
+      permissions: { manageUsers: true },
     };
   }
 
@@ -129,7 +158,7 @@ export class AuthService {
     return { url: url.toString(), flowToken };
   }
 
-  async completeAuthorization(callbackUrl: URL, flowToken: string | undefined): Promise<AppUser> {
+  async completeAuthorization(callbackUrl: URL, flowToken: string | undefined): Promise<SessionPrincipal> {
     if (!flowToken) throw new Error("Der Anmeldevorgang ist abgelaufen. Bitte erneut anmelden.");
     const oidc = this.requireOidc();
     const metadata = await this.getMetadata(oidc);
@@ -184,12 +213,15 @@ export class AuthService {
       requiredString(verified.payload, "email") ??
       verified.payload.sub;
     return {
-      id: `oidc:${verified.payload.sub}`,
-      username,
-      displayName: requiredString(verified.payload, "name") ?? username,
-      email: requiredString(verified.payload, "email"),
-      source: "oidc",
-      lastSeenAt: new Date().toISOString(),
+      user: {
+        id: `oidc:${verified.payload.sub}`,
+        username,
+        displayName: requiredString(verified.payload, "name") ?? username,
+        email: requiredString(verified.payload, "email"),
+        source: "oidc",
+        lastSeenAt: new Date().toISOString(),
+      },
+      permissions: permissionsFromClaims(verified.payload),
     };
   }
 

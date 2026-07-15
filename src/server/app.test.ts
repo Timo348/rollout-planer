@@ -3,9 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { BootstrapResponse } from "../shared/contracts.js";
+import type { AppUser, BootstrapResponse } from "../shared/contracts.js";
 import { buildApp } from "./app.js";
+import { AuthService, SESSION_COOKIE, type SessionPrincipal } from "./auth.js";
 import type { AppConfig } from "./config.js";
+import { StateStore } from "./store.js";
 
 const directories: string[] = [];
 const apps: FastifyInstance[] = [];
@@ -46,6 +48,20 @@ function cookieFrom(response: { headers: Record<string, string | string[] | numb
   const first = Array.isArray(value) ? value[0] : value;
   if (!first) throw new Error("Kein Session-Cookie erhalten.");
   return String(first).split(";")[0]!;
+}
+
+function oidcUser(id: string, username: string): AppUser {
+  return {
+    id,
+    username,
+    displayName: `${username} Beispiel`,
+    source: "oidc",
+    lastSeenAt: "2026-07-15T08:00:00.000Z",
+  };
+}
+
+async function sessionCookie(config: AppConfig, principal: SessionPrincipal): Promise<string> {
+  return `${SESSION_COOKIE}=${await new AuthService(config).createSession(principal)}`;
 }
 
 afterEach(async () => {
@@ -89,6 +105,7 @@ describe("Rollout API", () => {
     const cookie = cookieFrom(login);
     const firstBootstrap = await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie } });
     const initial = firstBootstrap.json<BootstrapResponse>();
+    expect(initial.permissions).toEqual({ manageUsers: true });
     expect(initial.dates.planningDays).toHaveLength(5);
     expect(initial.fixedSlots).toEqual([
       { startTime: "08:00", endTime: "09:00" },
@@ -137,5 +154,61 @@ describe("Rollout API", () => {
       headers: { origin: "https://fremd.example" },
     });
     expect(response.statusCode).toBe(403);
+  });
+
+  it("schützt die Benutzerlöschung serverseitig und sperrt die Sitzung des entfernten Benutzers", async () => {
+    const config = await testConfig(true);
+    const store = new StateStore(config.dataFile, () => new Date("2026-07-15T08:00:00.000Z"), true);
+    await store.initialize();
+    const bob = oidcUser("oidc:bob", "bob");
+    await store.upsertUser(bob);
+    const app = await buildApp(config, store);
+    apps.push(app);
+
+    const bobCookie = await sessionCookie(config, {
+      user: bob,
+      permissions: { manageUsers: false },
+    });
+    const devLogin = await app.inject({
+      method: "POST",
+      url: "/api/auth/dev-login",
+      headers: { origin: "http://localhost:8080" },
+    });
+    const adminCookie = cookieFrom(devLogin);
+
+    const forbidden = await app.inject({
+      method: "DELETE",
+      url: "/api/users/dev%3Adev",
+      headers: { cookie: bobCookie, origin: "http://localhost:8080" },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const selfDelete = await app.inject({
+      method: "DELETE",
+      url: "/api/users/dev%3Adev",
+      headers: { cookie: adminCookie, origin: "http://localhost:8080" },
+    });
+    expect(selfDelete.statusCode).toBe(409);
+
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: "/api/users/oidc%3Abob",
+      headers: { cookie: adminCookie, origin: "http://localhost:8080" },
+    });
+    expect(deleted.statusCode).toBe(204);
+    await expect(store.getUser("oidc:bob")).rejects.toThrow("Benutzer wurde nicht gefunden");
+
+    const staleSession = await app.inject({
+      method: "GET",
+      url: "/api/session",
+      headers: { cookie: bobCookie },
+    });
+    expect(staleSession.json()).toMatchObject({ authenticated: false, user: null });
+    const staleBootstrap = await app.inject({
+      method: "GET",
+      url: "/api/bootstrap",
+      headers: { cookie: bobCookie },
+    });
+    expect(staleBootstrap.statusCode).toBe(401);
   });
 });

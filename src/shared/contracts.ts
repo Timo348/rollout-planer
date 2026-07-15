@@ -47,6 +47,10 @@ export interface FixedSlot {
   endTime: string;
 }
 
+export interface AppPermissions {
+  manageUsers: boolean;
+}
+
 export interface BootstrapResponse {
   currentUser: AppUser;
   users: AppUser[];
@@ -57,6 +61,7 @@ export interface BootstrapResponse {
   limits: {
     maxAppointmentsPerSlot: number;
   };
+  permissions: AppPermissions;
 }
 
 export interface SessionResponse {
