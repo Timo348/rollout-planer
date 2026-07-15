@@ -340,6 +340,28 @@ h1, h2, h3, p { margin-top: 0; }
 .schedule--five .assignment-select__copy strong { font-size: 9px; }
 .schedule--five .quick-self-assign { width: 40px; min-height: 34px; flex-basis: 40px; border-radius: 7px; font-size: 7px; }
 
+.schedule--six .schedule-heading { min-height: 48px; flex-basis: 48px; padding: 7px 17px; }
+.schedule--six .schedule-heading h2 { margin-bottom: 2px; font-size: 14px; }
+.schedule--six .schedule-heading > div:first-child span { font-size: 9px; }
+.schedule--six .legend { gap: 14px; font-size: 9px; }
+.schedule--six .time-row { grid-template-columns: 132px minmax(0, 1fr); }
+.schedule--six .time-row__label { padding: 4px 12px 4px 16px; }
+.schedule--six .time-row__icon { width: 24px; height: 24px; margin-bottom: 3px; border-radius: 7px; }
+.schedule--six .time-row__label strong { font-size: 10px; }
+.schedule--six .time-row__label small { margin-top: 2px; font-size: 7px; }
+.schedule--six .appointment-grid { padding: 3px 7px; gap: 7px; }
+.schedule--six .appointment-card { min-width: 160px; max-width: 280px; max-height: 86px; padding: 4px 7px 5px; flex-basis: 160px; border-radius: 8px; }
+.schedule--six .appointment-card__topline { min-height: 19px; }
+.schedule--six .appointment-card__status { gap: 4px; font-size: 6px; }
+.schedule--six .appointment-card h3 { margin: 0 0 2px; font-size: 11px; line-height: 1.1; }
+.schedule--six .appointment-card .icon-button--small { width: 21px; height: 21px; border-radius: 6px; }
+.schedule--six .assignment-row { min-height: 31px; gap: 4px; }
+.schedule--six .assignment-select { min-height: 31px; padding: 2px 6px; gap: 5px; border-radius: 7px; }
+.schedule--six .assignment-select__avatar { width: 22px; height: 22px; flex-basis: 22px; border-radius: 6px; font-size: 7px; }
+.schedule--six .assignment-select__copy small { font-size: 6px; }
+.schedule--six .assignment-select__copy strong { font-size: 8px; }
+.schedule--six .quick-self-assign { width: 36px; min-height: 31px; flex-basis: 36px; border-radius: 7px; font-size: 7px; }
+
 .schedule--dense .schedule-heading { min-height: 54px; flex-basis: 54px; padding: 10px 18px; }
 .schedule--dense .schedule-heading h2 { font-size: 15px; }
 .schedule--dense .time-row { grid-template-columns: 124px minmax(0, 1fr); }

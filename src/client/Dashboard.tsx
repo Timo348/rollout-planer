@@ -492,13 +492,15 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
 
         <section
           className={
-            rows.length > 5
+            rows.length > 6
               ? "schedule schedule--dense"
-              : rows.length === 5
-                ? "schedule schedule--five"
-                : rows.length === 4
-                  ? "schedule schedule--four"
-                  : "schedule"
+              : rows.length === 6
+                ? "schedule schedule--six"
+                : rows.length === 5
+                  ? "schedule schedule--five"
+                  : rows.length === 4
+                    ? "schedule schedule--four"
+                    : "schedule"
           }
           aria-label={`Termine für ${formatDateShort(selectedDate)}`}
         >
