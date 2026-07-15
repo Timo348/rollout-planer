@@ -111,6 +111,7 @@ function NameInputs({
 
 export function CreateDialog({
   initialDate,
+  initialSlotKey,
   dates,
   fixedSlots,
   maximum,
@@ -118,6 +119,7 @@ export function CreateDialog({
   onCreate,
 }: {
   initialDate: string;
+  initialSlotKey?: string | null;
   dates: ScheduleDates;
   fixedSlots: FixedSlot[];
   maximum: number;
@@ -128,7 +130,11 @@ export function CreateDialog({
   }) => Promise<void>;
 }) {
   const [date, setDate] = useState(initialDate);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() =>
+    initialSlotKey && fixedSlots.some((slot) => slotKey(slot) === initialSlotKey)
+      ? new Set([initialSlotKey])
+      : new Set(),
+  );
   const [drafts, setDrafts] = useState<Record<string, SlotDraft>>(() =>
     Object.fromEntries(fixedSlots.map((slot) => [slotKey(slot), createDraft(slot)])),
   );
