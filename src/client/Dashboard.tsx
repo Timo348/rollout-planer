@@ -284,7 +284,15 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
         </header>
 
         <section
-          className={rows.length > 4 ? "schedule schedule--dense" : rows.length === 4 ? "schedule schedule--four" : "schedule"}
+          className={
+            rows.length > 5
+              ? "schedule schedule--dense"
+              : rows.length === 5
+                ? "schedule schedule--five"
+                : rows.length === 4
+                  ? "schedule schedule--four"
+                  : "schedule"
+          }
           aria-label={`Termine für ${formatDateShort(selectedDate)}`}
         >
           <div className="schedule-heading"><div><h2>{formatDateLong(selectedDate)}</h2><span>{selectedAppointments.length === 0 ? "Noch keine Termine angelegt" : `${selectedAppointments.length} ${selectedAppointments.length === 1 ? "Termin" : "Termine"} geplant`}</span></div><div className="legend"><span><i className="legend-dot legend-dot--free" />Frei</span><span><i className="legend-dot legend-dot--mine" />Mein Termin</span><span><i className="legend-dot legend-dot--assigned" />Zugewiesen</span></div></div>

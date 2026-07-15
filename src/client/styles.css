@@ -284,6 +284,26 @@ h1, h2, h3, p { margin-top: 0; }
 .schedule--four .assignment-select__copy strong { font-size: 9px; }
 .schedule--four .quick-self-assign { width: 44px; min-height: 36px; flex-basis: 44px; border-radius: 8px; font-size: 8px; }
 
+.schedule--five .schedule-heading { min-height: 54px; flex-basis: 54px; padding: 9px 19px; }
+.schedule--five .schedule-heading h2 { margin-bottom: 3px; font-size: 16px; }
+.schedule--five .time-row { grid-template-columns: 138px minmax(0, 1fr); }
+.schedule--five .time-row__label { padding: 6px 14px 6px 18px; }
+.schedule--five .time-row__icon { width: 28px; height: 28px; margin-bottom: 4px; border-radius: 8px; }
+.schedule--five .time-row__label strong { font-size: 11px; }
+.schedule--five .time-row__label small { margin-top: 2px; font-size: 8px; }
+.schedule--five .appointment-grid { padding: 5px 9px; gap: 8px; }
+.schedule--five .appointment-card { min-width: 170px; max-width: 300px; max-height: 100px; padding: 5px 9px 7px; flex-basis: 170px; border-radius: 9px; }
+.schedule--five .appointment-card__topline { min-height: 22px; }
+.schedule--five .appointment-card__status { gap: 5px; font-size: 7px; }
+.schedule--five .appointment-card h3 { margin: 0 0 3px; font-size: 12px; line-height: 1.15; }
+.schedule--five .appointment-card .icon-button--small { width: 23px; height: 23px; border-radius: 6px; }
+.schedule--five .assignment-row { min-height: 34px; gap: 5px; }
+.schedule--five .assignment-select { min-height: 34px; padding: 3px 7px; gap: 6px; border-radius: 7px; }
+.schedule--five .assignment-select__avatar { width: 24px; height: 24px; flex-basis: 24px; border-radius: 6px; font-size: 8px; }
+.schedule--five .assignment-select__copy small { font-size: 6px; }
+.schedule--five .assignment-select__copy strong { font-size: 9px; }
+.schedule--five .quick-self-assign { width: 40px; min-height: 34px; flex-basis: 40px; border-radius: 7px; font-size: 7px; }
+
 .schedule--dense .schedule-heading { min-height: 54px; flex-basis: 54px; padding: 10px 18px; }
 .schedule--dense .schedule-heading h2 { font-size: 15px; }
 .schedule--dense .time-row { grid-template-columns: 124px minmax(0, 1fr); }
