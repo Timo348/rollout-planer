@@ -7,7 +7,7 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - Authentik-Anmeldung über OAuth2/OpenID Connect mit Authorization Code, PKCE, `state` und `nonce`
 - optionaler, ausschließlich per Entwicklungsmodus freischaltbarer Dev-Login
 - keine Rollen: Jeder angemeldete Benutzer besitzt dieselben Rechte
-- eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 2 MB) mit Initialen als Fallback
+- eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 20 MB) mit Initialen als Fallback
 - feste Uhrzeiten 08–09, 09–10, 10–11, 11–12, 12–13 und 13–14 Uhr
 - zusätzliche eigene Uhrzeit über „Von“ und „Bis“
 - Schieberegler für 1–4 Termine sowie manuelle Sonderanzahl bis 50

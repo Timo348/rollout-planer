@@ -286,7 +286,7 @@ h1, h2, h3, p { margin-top: 0; }
 .quick-self-assign:hover:not(:disabled) { border-color: #91d7c2; background: #ddf6ee; }
 
 .assignment-menu { position: fixed; z-index: 200; max-height: 292px; padding: 7px; overflow-y: auto; border: 1px solid #dce1eb; border-radius: 12px; color: var(--ink-900); background: rgba(255,255,255,.985); box-shadow: 0 18px 45px rgba(17,26,51,.2); animation: assignment-menu-in 120ms ease-out; }
-@keyframes assignment-menu-in { from { opacity: 0; transform: translateY(-4px) scale(.99); } }
+@keyframes assignment-menu-in { from { opacity: 0; translate: 0 -4px; } }
 .assignment-menu__heading { padding: 5px 7px 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .assignment-menu__heading span { font-size: 10px; font-weight: 800; }
 .assignment-menu__heading small { color: var(--ink-400); font-size: 8px; }
@@ -467,4 +467,14 @@ h1, h2, h3, p { margin-top: 0; }
 @media (min-width: 1550px) {
   .app-shell { grid-template-columns: 270px minmax(0, 1fr); }
   .workspace { padding-left: 70px; padding-right: 70px; }
+}
+
+/* Entspricht auf großen Desktop-Fenstern ungefähr 135 % Browserzoom. */
+@media (min-width: 1500px) and (min-height: 850px) {
+  .app-shell {
+    width: calc(100vw / 1.35);
+    height: calc(100vh / 1.35);
+    transform: scale(1.35);
+    transform-origin: top left;
+  }
 }

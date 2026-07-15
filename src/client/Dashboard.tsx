@@ -97,20 +97,27 @@ function AppointmentCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 270 });
+  const [menuPosition, setMenuPosition] = useState<CSSProperties>({ top: 0, left: 0, width: 270 });
 
   const positionMenu = useCallback(() => {
     const trigger = triggerRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
-    const width = Math.min(286, window.innerWidth - 24);
-    const estimatedHeight = Math.min(292, 54 + (users.length + 1) * 50);
+    const appShell = document.querySelector<HTMLElement>(".app-shell");
+    const measuredScale = appShell && appShell.clientWidth > 0
+      ? appShell.getBoundingClientRect().width / appShell.clientWidth
+      : 1;
+    const scale = Number.isFinite(measuredScale) ? Math.max(1, measuredScale) : 1;
+    const width = Math.min(286, (window.innerWidth - 24) / scale);
+    const visualWidth = width * scale;
+    const estimatedHeight = Math.min(292, 54 + (users.length + 1) * 50) * scale;
+    const gap = 6 * scale;
     const roomBelow = window.innerHeight - rect.bottom - 12;
     const top = roomBelow >= estimatedHeight
-      ? rect.bottom + 6
-      : Math.max(12, rect.top - estimatedHeight - 6);
-    const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
-    setMenuPosition({ top, left, width });
+      ? rect.bottom + gap
+      : Math.max(12, rect.top - estimatedHeight - gap);
+    const left = Math.max(12, Math.min(rect.left, window.innerWidth - visualWidth - 12));
+    setMenuPosition({ top, left, width, transform: `scale(${scale})`, transformOrigin: "top left" });
   }, [users.length]);
 
   useEffect(() => {
@@ -391,8 +398,8 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       showToast("Bitte ein JPEG-, PNG- oder WebP-Bild auswählen.", "error");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("Das Profilbild darf maximal 2 MB groß sein.", "error");
+    if (file.size > 20 * 1024 * 1024) {
+      showToast("Das Profilbild darf maximal 20 MB groß sein.", "error");
       return;
     }
     setProfileBusy(true);
@@ -467,7 +474,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
                 <UserRoundX size={16} />Bild entfernen
               </button>
             )}
-            <small className="profile-menu__hint">JPEG, PNG oder WebP · maximal 2 MB</small>
+            <small className="profile-menu__hint">JPEG, PNG oder WebP · maximal 20 MB</small>
             <input ref={profileInputRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void uploadAvatar(event)} />
           </div>
         )}

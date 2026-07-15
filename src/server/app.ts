@@ -320,7 +320,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
 
   app.setErrorHandler((error, _request, reply) => {
     if ((error as { code?: string }).code === "FST_ERR_CTP_BODY_TOO_LARGE") {
-      return reply.code(413).send({ error: "payload_too_large", message: "Das Profilbild darf maximal 2 MB groß sein." });
+      return reply.code(413).send({ error: "payload_too_large", message: "Das Profilbild darf maximal 20 MB groß sein." });
     }
     if ((error as { code?: string }).code === "FST_ERR_CTP_INVALID_MEDIA_TYPE") {
       return reply.code(415).send({ error: "unsupported_media_type", message: "Erlaubt sind JPEG-, PNG- und WebP-Bilder." });

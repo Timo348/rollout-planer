@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AvatarMimeType } from "../shared/contracts.js";
 
-export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+export const MAX_AVATAR_BYTES = 20 * 1024 * 1024;
 export const AVATAR_MIME_TYPES: AvatarMimeType[] = ["image/jpeg", "image/png", "image/webp"];
 
 export function isAvatarMimeType(value: string): value is AvatarMimeType {
