@@ -7,6 +7,13 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 import type { AppUser } from "../shared/contracts.js";
 import { AuthService, OAUTH_FLOW_COOKIE, SESSION_COOKIE } from "./auth.js";
+import {
+  AVATAR_MIME_TYPES,
+  AvatarStore,
+  hasMatchingImageSignature,
+  isAvatarMimeType,
+  MAX_AVATAR_BYTES,
+} from "./avatars.js";
 import type { AppConfig } from "./config.js";
 import { MAX_APPOINTMENTS_PER_SLOT } from "./constants.js";
 import {
@@ -89,7 +96,17 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
   });
   const store = storeOverride ?? new StateStore(config.dataFile, () => new Date(), config.devLoginEnabled);
   await store.initialize();
+  const avatars = new AvatarStore(path.join(path.dirname(config.dataFile), "avatars"));
+  await avatars.initialize();
   const auth = new AuthService(config);
+
+  for (const mimeType of AVATAR_MIME_TYPES) {
+    app.addContentTypeParser(
+      mimeType,
+      { parseAs: "buffer", bodyLimit: MAX_AVATAR_BYTES },
+      (_request, body, done) => done(null, body),
+    );
+  }
 
   await app.register(cookie);
   await app.register(helmet, {
@@ -198,6 +215,64 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     store.getBootstrap(request.currentUser!.id),
   );
 
+  app.get("/api/users/:id/avatar", { preHandler: [authenticate] }, async (request, reply) => {
+    const id = z.string().min(1).parse((request.params as { id?: string }).id);
+    const user = await store.getUser(id);
+    if (!user.avatar) throw new NotFoundError("Für diesen Benutzer ist kein Profilbild hinterlegt.");
+    const image = await avatars.read(user.avatar.key);
+    if (!image) throw new NotFoundError("Das Profilbild wurde nicht gefunden.");
+    return reply
+      .header("content-type", user.avatar.mimeType)
+      .header("cache-control", "private, max-age=31536000, immutable")
+      .send(image);
+  });
+
+  app.put(
+    "/api/users/me/avatar",
+    { preHandler: [authenticate, verifyOrigin], bodyLimit: MAX_AVATAR_BYTES },
+    async (request, reply) => {
+      const mimeType = (request.headers["content-type"] ?? "").split(";", 1)[0]!.toLowerCase();
+      if (!isAvatarMimeType(mimeType)) {
+        return reply.code(415).send({
+          error: "unsupported_media_type",
+          message: "Erlaubt sind JPEG-, PNG- und WebP-Bilder.",
+        });
+      }
+      if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+        return reply.code(400).send({ error: "validation", message: "Bitte eine Bilddatei auswählen." });
+      }
+      if (!hasMatchingImageSignature(request.body, mimeType)) {
+        return reply.code(400).send({ error: "validation", message: "Die Datei ist kein gültiges Bild im ausgewählten Format." });
+      }
+
+      const previous = await store.getUser(request.currentUser!.id);
+      const key = await avatars.write(request.body);
+      try {
+        const user = await store.setUserAvatar(request.currentUser!.id, {
+          key,
+          mimeType,
+          updatedAt: new Date().toISOString(),
+        });
+        if (previous.avatar) await avatars.delete(previous.avatar.key);
+        return { user };
+      } catch (error) {
+        await avatars.delete(key);
+        throw error;
+      }
+    },
+  );
+
+  app.delete(
+    "/api/users/me/avatar",
+    { preHandler: [authenticate, verifyOrigin] },
+    async (request, reply) => {
+      const previous = await store.getUser(request.currentUser!.id);
+      const user = await store.setUserAvatar(request.currentUser!.id, null);
+      if (previous.avatar) await avatars.delete(previous.avatar.key);
+      return reply.send({ user });
+    },
+  );
+
   app.post(
     "/api/appointments/batch",
     { preHandler: [authenticate, verifyOrigin] },
@@ -244,6 +319,12 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
   );
 
   app.setErrorHandler((error, _request, reply) => {
+    if ((error as { code?: string }).code === "FST_ERR_CTP_BODY_TOO_LARGE") {
+      return reply.code(413).send({ error: "payload_too_large", message: "Das Profilbild darf maximal 2 MB groß sein." });
+    }
+    if ((error as { code?: string }).code === "FST_ERR_CTP_INVALID_MEDIA_TYPE") {
+      return reply.code(415).send({ error: "unsupported_media_type", message: "Erlaubt sind JPEG-, PNG- und WebP-Bilder." });
+    }
     if (error instanceof ZodError) {
       return reply.code(400).send({
         error: "validation",

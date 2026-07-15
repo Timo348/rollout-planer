@@ -1,4 +1,11 @@
 export type UserSource = "oidc" | "dev";
+export type AvatarMimeType = "image/jpeg" | "image/png" | "image/webp";
+
+export interface UserAvatar {
+  key: string;
+  mimeType: AvatarMimeType;
+  updatedAt: string;
+}
 
 export interface AppUser {
   id: string;
@@ -7,6 +14,7 @@ export interface AppUser {
   email?: string;
   source: UserSource;
   lastSeenAt: string;
+  avatar?: UserAvatar;
 }
 
 export interface Appointment {

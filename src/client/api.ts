@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  AppUser,
   Appointment,
   BootstrapResponse,
   SessionResponse,
@@ -74,4 +75,12 @@ export const api = {
     request<void>(`/api/appointments/${encodeURIComponent(id)}?version=${version}`, {
       method: "DELETE",
     }),
+  uploadAvatar: (file: File) =>
+    request<{ user: AppUser }>("/api/users/me/avatar", {
+      method: "PUT",
+      body: file,
+      headers: { "content-type": file.type },
+    }),
+  deleteAvatar: () =>
+    request<{ user: AppUser }>("/api/users/me/avatar", { method: "DELETE" }),
 };

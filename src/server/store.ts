@@ -13,6 +13,11 @@ const userSchema = z.object({
   email: z.string().optional(),
   source: z.enum(["oidc", "dev"]),
   lastSeenAt: z.string(),
+  avatar: z.object({
+    key: z.string().regex(/^[0-9a-f-]+\.img$/),
+    mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    updatedAt: z.string(),
+  }).optional(),
 });
 
 const appointmentSchema = z.object({
@@ -117,10 +122,35 @@ export class StateStore {
     return this.enqueue(async () => {
       this.cleanupState();
       const index = this.state.users.findIndex((entry) => entry.id === user.id);
-      if (index >= 0) this.state.users[index] = user;
+      if (index >= 0) {
+        const existing = this.state.users[index]!;
+        this.state.users[index] = existing.avatar ? { ...user, avatar: existing.avatar } : user;
+      }
       else this.state.users.push(user);
       await this.persist();
+      return structuredClone(this.state.users.find((entry) => entry.id === user.id)!);
+    });
+  }
+
+  async getUser(id: string): Promise<AppUser> {
+    return this.enqueue(async () => {
+      const user = this.state.users.find((entry) => entry.id === id);
+      if (!user) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
       return structuredClone(user);
+    });
+  }
+
+  async setUserAvatar(id: string, avatar: AppUser["avatar"] | null): Promise<AppUser> {
+    return this.enqueue(async () => {
+      const index = this.state.users.findIndex((entry) => entry.id === id);
+      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      const existing = this.state.users[index]!;
+      const updated = avatar
+        ? { ...existing, avatar }
+        : Object.fromEntries(Object.entries(existing).filter(([key]) => key !== "avatar")) as AppUser;
+      this.state.users[index] = updated;
+      await this.persist();
+      return structuredClone(updated);
     });
   }
 

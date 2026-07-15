@@ -1,9 +1,11 @@
 import {
   CalendarDays,
+  Camera,
   Check,
   ChevronDown,
   CircleUserRound,
   Clock3,
+  ImagePlus,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
@@ -12,9 +14,11 @@ import {
   RefreshCw,
   Trash2,
   UserCheck,
+  UserRoundX,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { AppUser, Appointment, BootstrapResponse, FixedSlot } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { ConfirmDialog, CreateDialog, EditDialog } from "./Dialogs";
@@ -49,6 +53,20 @@ function slotKey(slot: FixedSlot): string {
   return `${slot.startTime}-${slot.endTime}`;
 }
 
+function avatarUrl(user: AppUser): string | null {
+  if (!user.avatar) return null;
+  return `/api/users/${encodeURIComponent(user.id)}/avatar?v=${encodeURIComponent(user.avatar.updatedAt)}`;
+}
+
+function UserAvatar({ user, className }: { user: AppUser; className: string }) {
+  const source = avatarUrl(user);
+  return (
+    <span className={className} aria-hidden="true">
+      {source ? <img src={source} alt="" /> : initials(user.displayName)}
+    </span>
+  );
+}
+
 interface ConfirmState {
   title: string;
   message: string;
@@ -76,6 +94,59 @@ function AppointmentCard({
   const assignee = users.find((user) => user.id === appointment.assigneeId);
   const mine = appointment.assigneeId === currentUser.id;
   const stateClass = mine ? "is-mine" : assignee ? "is-assigned" : "is-free";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 270 });
+
+  const positionMenu = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(286, window.innerWidth - 24);
+    const estimatedHeight = Math.min(292, 54 + (users.length + 1) * 50);
+    const roomBelow = window.innerHeight - rect.bottom - 12;
+    const top = roomBelow >= estimatedHeight
+      ? rect.bottom + 6
+      : Math.max(12, rect.top - estimatedHeight - 6);
+    const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+    setMenuPosition({ top, left, width });
+  }, [users.length]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    positionMenu();
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [menuOpen, positionMenu]);
+
+  useEffect(() => {
+    if (busy) setMenuOpen(false);
+  }, [busy]);
+
+  const selectAssignee = (assigneeId: string | null) => {
+    setMenuOpen(false);
+    onAssign(appointment, assigneeId);
+  };
 
   return (
     <article className={`appointment-card ${stateClass} ${busy ? "is-busy" : ""}`}>
@@ -91,17 +162,69 @@ function AppointmentCard({
       </div>
       <h3 title={appointment.name}>{appointment.name}</h3>
       <div className="assignment-row">
-        <label className={`assignment-select ${assignee ? "has-assignee" : "is-unassigned"}`} title="Person zuweisen">
-          <span className="assignment-select__avatar">{assignee ? initials(assignee.displayName) : <CircleUserRound size={17} />}</span>
+        <button
+          ref={triggerRef}
+          className={`assignment-select ${assignee ? "has-assignee" : "is-unassigned"} ${menuOpen ? "is-open" : ""}`}
+          type="button"
+          disabled={busy}
+          title="Person zuweisen"
+          aria-haspopup="listbox"
+          aria-expanded={menuOpen}
+          aria-label={`Person für ${appointment.name} auswählen`}
+          onClick={() => {
+            if (!menuOpen) positionMenu();
+            setMenuOpen((current) => !current);
+          }}
+        >
+          {assignee
+            ? <UserAvatar user={assignee} className="assignment-select__avatar" />
+            : <span className="assignment-select__avatar"><CircleUserRound size={17} /></span>}
           <span className="assignment-select__copy"><small>Zuständig</small><strong>{assignee?.displayName ?? "Nicht zugewiesen"}</strong></span>
           <ChevronDown className="assignment-select__chevron" size={15} />
-          <select disabled={busy} value={appointment.assigneeId ?? ""} onChange={(event) => onAssign(appointment, event.target.value || null)} aria-label={`Person für ${appointment.name} auswählen`}>
-            <option value="">Nicht zugewiesen</option>
-            {users.map((user) => <option key={user.id} value={user.id}>{user.displayName}{user.id === currentUser.id ? " (ich)" : ""}</option>)}
-          </select>
-        </label>
+        </button>
         {!assignee && <button className="quick-self-assign" type="button" disabled={busy} onClick={() => onAssign(appointment, currentUser.id)} title="Mir zuweisen" aria-label={`${appointment.name} mir zuweisen`}>{busy ? <LoaderCircle className="spin" size={15} /> : <UserCheck size={16} />}<span>Ich</span></button>}
       </div>
+      {menuOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="assignment-menu"
+          style={menuPosition}
+          role="listbox"
+          aria-label={`Zuständigkeit für ${appointment.name}`}
+        >
+          <div className="assignment-menu__heading"><span>Zuständigkeit</span><small>Person auswählen</small></div>
+          <button
+            className={`assignment-menu__option assignment-menu__option--free ${!assignee ? "is-selected" : ""}`}
+            type="button"
+            role="option"
+            aria-selected={!assignee}
+            onClick={() => selectAssignee(null)}
+          >
+            <span className="assignment-menu__avatar assignment-menu__avatar--free"><CircleUserRound size={18} /></span>
+            <span className="assignment-menu__copy"><strong>Nicht zugewiesen</strong><small>Termin bleibt für das Team frei</small></span>
+            {!assignee && <Check size={16} />}
+          </button>
+          <div className="assignment-menu__divider" />
+          {users.map((user) => {
+            const selected = user.id === appointment.assigneeId;
+            return (
+              <button
+                className={`assignment-menu__option ${selected ? "is-selected" : ""}`}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                key={user.id}
+                onClick={() => selectAssignee(user.id)}
+              >
+                <UserAvatar user={user} className="assignment-menu__avatar" />
+                <span className="assignment-menu__copy"><strong>{user.displayName}</strong><small>{user.id === currentUser.id ? "Ich" : user.username}</small></span>
+                {selected && <Check size={16} />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
     </article>
   );
 }
@@ -117,6 +240,11 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (message: string, tone: "success" | "error" = "success") => {
     setToast({ message, tone });
@@ -152,6 +280,24 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!profileButtonRef.current?.contains(target) && !profileMenuRef.current?.contains(target)) setProfileOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfileOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [profileOpen]);
 
   const selectedAppointments = useMemo(
     () => data?.appointments.filter((appointment) => appointment.date === selectedDate) ?? [],
@@ -237,6 +383,45 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
     try { await api.logout(); } finally { onLoggedOut(); }
   };
 
+  const uploadAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      showToast("Bitte ein JPEG-, PNG- oder WebP-Bild auswählen.", "error");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast("Das Profilbild darf maximal 2 MB groß sein.", "error");
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      await api.uploadAvatar(file);
+      await load(true);
+      setProfileOpen(false);
+      showToast("Profilbild gespeichert.");
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : "Profilbild konnte nicht gespeichert werden.", "error");
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const askRemoveAvatar = () => {
+    setProfileOpen(false);
+    setConfirm({
+      title: "Profilbild entfernen?",
+      message: "Danach werden wieder deine Initialen angezeigt.",
+      destructive: true,
+      action: async () => {
+        await api.deleteAvatar();
+        await load(true);
+        showToast("Profilbild entfernt.");
+      },
+    });
+  };
+
   if (loading || !data) {
     return <main className="loading-screen"><LoaderCircle className="spin" size={24} /><span>Terminübersicht wird vorbereitet …</span></main>;
   }
@@ -267,8 +452,30 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
             <div><strong>{selectedAppointments.length}</strong><span>Termine</span></div><div><strong>{free}</strong><span>Noch frei</span></div><div><strong>{mine}</strong><span>Meine</span></div>
           </div>
         </section>
+        {profileOpen && (
+          <div className="profile-menu" ref={profileMenuRef}>
+            <div className="profile-menu__identity">
+              <UserAvatar user={data.currentUser} className="avatar avatar--profile" />
+              <div><strong>{data.currentUser.displayName}</strong><span>Dein Profilbild</span></div>
+            </div>
+            <button className="profile-menu__action" type="button" disabled={profileBusy} onClick={() => profileInputRef.current?.click()}>
+              {profileBusy ? <LoaderCircle className="spin" size={16} /> : <ImagePlus size={16} />}
+              {data.currentUser.avatar ? "Bild ersetzen" : "Bild hochladen"}
+            </button>
+            {data.currentUser.avatar && (
+              <button className="profile-menu__action profile-menu__action--danger" type="button" disabled={profileBusy} onClick={askRemoveAvatar}>
+                <UserRoundX size={16} />Bild entfernen
+              </button>
+            )}
+            <small className="profile-menu__hint">JPEG, PNG oder WebP · maximal 2 MB</small>
+            <input ref={profileInputRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void uploadAvatar(event)} />
+          </div>
+        )}
         <div className="sidebar-user">
-          <span className="avatar">{initials(data.currentUser.displayName)}</span>
+          <button ref={profileButtonRef} className="profile-trigger" type="button" onClick={() => setProfileOpen((current) => !current)} aria-expanded={profileOpen} aria-label="Profilbild verwalten" title="Profilbild verwalten">
+            <UserAvatar user={data.currentUser} className="avatar" />
+            <span className="profile-trigger__badge"><Camera size={10} /></span>
+          </button>
           <div><strong>{data.currentUser.displayName}</strong><span>{data.currentUser.source === "dev" ? "Entwicklungszugang" : data.currentUser.username}</span></div>
           <button className="icon-button icon-button--on-dark" type="button" onClick={logout} aria-label="Abmelden" title="Abmelden"><LogOut size={17} /></button>
         </div>
