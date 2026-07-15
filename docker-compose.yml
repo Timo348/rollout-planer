@@ -1,0 +1,15 @@
+services:
+  rollout-planer:
+    image: timo348/rollout-planer:${APP_IMAGE_TAG:-latest}
+    container_name: rollout-planer
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - rollout-data:/app/data
+
+volumes:
+  rollout-data:
+    name: rollout-planer-data
