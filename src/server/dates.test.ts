@@ -28,10 +28,37 @@ describe("Arbeitstagslogik Baden-Württemberg", () => {
     expect(isWorkday("2026-04-06")).toBe(false);
   });
 
-  it("liefert heute und den korrekten nächsten Arbeitstag", () => {
+  it("liefert ab Montag die fünf Planungstage bis Freitag", () => {
+    expect(scheduleDates(new Date("2026-07-13T10:00:00.000Z")).planningDays).toEqual([
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16",
+      "2026-07-17",
+    ]);
+  });
+
+  it("liefert ab Dienstag vier weitere Arbeitstage bis Montag", () => {
+    expect(scheduleDates(new Date("2026-07-14T10:00:00.000Z")).planningDays).toEqual([
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16",
+      "2026-07-17",
+      "2026-07-20",
+    ]);
+  });
+
+  it("liefert heute, den nächsten Arbeitstag und alle fünf Planungstage", () => {
     expect(scheduleDates(new Date("2026-07-17T10:00:00.000Z"))).toEqual({
       today: "2026-07-17",
       nextWorkday: "2026-07-20",
+      planningDays: [
+        "2026-07-17",
+        "2026-07-20",
+        "2026-07-21",
+        "2026-07-22",
+        "2026-07-23",
+      ],
     });
   });
 });

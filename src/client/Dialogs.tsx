@@ -19,9 +19,15 @@ interface SlotDraft extends FixedSlot {
 
 function formatDate(date: string): string {
   return new Intl.DateTimeFormat("de-DE", {
-    weekday: "short",
     day: "2-digit",
     month: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function formatWeekday(date: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    weekday: "long",
     timeZone: "UTC",
   }).format(new Date(`${date}T12:00:00Z`));
 }
@@ -252,12 +258,13 @@ export function CreateDialog({
             <div className="form-section">
               <div className="form-section__heading"><span>1</span><div><strong>Tag auswählen</strong><small>Für wann planst du?</small></div></div>
               <div className="date-choice date-choice--compact">
-                <button className={date === dates.today ? "date-choice__button is-active" : "date-choice__button"} type="button" onClick={() => setDate(dates.today)}>
-                  <CalendarDays size={18} /><span><small>Heute</small><strong>{formatDate(dates.today)}</strong></span>{date === dates.today && <Check size={17} />}
-                </button>
-                <button className={date === dates.nextWorkday ? "date-choice__button is-active" : "date-choice__button"} type="button" onClick={() => setDate(dates.nextWorkday)}>
-                  <CalendarDays size={18} /><span><small>Nächster Arbeitstag</small><strong>{formatDate(dates.nextWorkday)}</strong></span>{date === dates.nextWorkday && <Check size={17} />}
-                </button>
+                {dates.planningDays.map((planningDate) => (
+                  <button className={date === planningDate ? "date-choice__button is-active" : "date-choice__button"} type="button" key={planningDate} onClick={() => setDate(planningDate)}>
+                    <CalendarDays size={17} />
+                    <span><small>{planningDate === dates.today ? "Heute" : formatWeekday(planningDate)}</small><strong>{formatDate(planningDate)}</strong></span>
+                    {date === planningDate && <Check size={15} />}
+                  </button>
+                ))}
               </div>
             </div>
 

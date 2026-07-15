@@ -89,6 +89,7 @@ describe("Rollout API", () => {
     const cookie = cookieFrom(login);
     const firstBootstrap = await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie } });
     const initial = firstBootstrap.json<BootstrapResponse>();
+    expect(initial.dates.planningDays).toHaveLength(5);
     expect(initial.fixedSlots).toEqual([
       { startTime: "08:00", endTime: "09:00" },
       { startTime: "09:00", endTime: "10:00" },

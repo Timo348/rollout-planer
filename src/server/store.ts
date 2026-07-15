@@ -33,16 +33,42 @@ const appointmentSchema = z.object({
   version: z.number().int().positive(),
 });
 
-const stateSchema = z.object({
+const monthlyCountsSchema = z.record(
+  z.string().regex(/^\d{4}-\d{2}$/),
+  z.record(z.string().min(1), z.number().int().positive()),
+);
+
+const legacyStateSchema = z.object({
   schemaVersion: z.literal(1),
   users: z.array(userSchema),
   appointments: z.array(appointmentSchema),
 });
 
+const provisionalStateSchema = z.object({
+  schemaVersion: z.literal(2),
+  users: z.array(userSchema),
+  appointments: z.array(appointmentSchema),
+  monthlyAssignments: monthlyCountsSchema,
+});
+
+const currentStateSchema = z.object({
+  schemaVersion: z.literal(3),
+  users: z.array(userSchema),
+  appointments: z.array(appointmentSchema),
+  monthlyCompletions: monthlyCountsSchema,
+});
+
+const stateSchema = z.discriminatedUnion("schemaVersion", [
+  legacyStateSchema,
+  provisionalStateSchema,
+  currentStateSchema,
+]);
+
 interface StoredState {
-  schemaVersion: 1;
+  schemaVersion: 3;
   users: AppUser[];
   appointments: Appointment[];
+  monthlyCompletions: Record<string, Record<string, number>>;
 }
 
 export interface CreateSlotInput {
@@ -73,7 +99,47 @@ export class NotFoundError extends Error {
 export class StateValidationError extends Error {}
 
 function emptyState(): StoredState {
-  return { schemaVersion: 1, users: [], appointments: [] };
+  return { schemaVersion: 3, users: [], appointments: [], monthlyCompletions: {} };
+}
+
+function previousCalendarMonth(date: string): string {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
+}
+
+function recordMonthlyCompletion(
+  monthlyCompletions: StoredState["monthlyCompletions"],
+  date: string,
+  userId: string,
+): void {
+  const month = date.slice(0, 7);
+  const monthCounts = monthlyCompletions[month] ?? {};
+  monthCounts[userId] = (monthCounts[userId] ?? 0) + 1;
+  monthlyCompletions[month] = monthCounts;
+}
+
+function migrateState(
+  legacy: z.infer<typeof legacyStateSchema> | z.infer<typeof provisionalStateSchema>,
+  today: string,
+): StoredState {
+  const currentMonth = today.slice(0, 7);
+  const monthlyCompletions = legacy.schemaVersion === 2
+    ? Object.fromEntries(
+      Object.entries(legacy.monthlyAssignments)
+        .filter(([month]) => month < currentMonth)
+        .map(([month, counts]) => [month, { ...counts }]),
+    )
+    : {};
+  const appointments = legacy.schemaVersion === 2
+    ? legacy.appointments.filter((appointment) => appointment.date.slice(0, 7) >= currentMonth)
+    : legacy.appointments;
+  return {
+    schemaVersion: 3,
+    users: legacy.users,
+    appointments,
+    monthlyCompletions,
+  };
 }
 
 export class StateStore {
@@ -90,6 +156,7 @@ export class StateStore {
   async initialize(): Promise<void> {
     if (this.initialized) return;
     await mkdir(path.dirname(this.filePath), { recursive: true });
+    let migrated = false;
 
     try {
       const raw = await readFile(this.filePath, "utf8");
@@ -99,7 +166,12 @@ export class StateStore {
           `Die Zustandsdatei ist ungültig: ${parsed.error.issues[0]?.message ?? "unbekannter Fehler"}`,
         );
       }
-      this.state = parsed.data;
+      if (parsed.data.schemaVersion !== 3) {
+        this.state = migrateState(parsed.data, scheduleDates(this.now()).today);
+        migrated = true;
+      } else {
+        this.state = parsed.data;
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         this.state = emptyState();
@@ -114,7 +186,7 @@ export class StateStore {
     }
 
     const changed = this.cleanupState();
-    if (changed) await this.persist();
+    if (migrated || changed) await this.persist();
     this.initialized = true;
   }
 
@@ -160,14 +232,20 @@ export class StateStore {
       if (changed) await this.persist();
       const currentUser = this.state.users.find((user) => user.id === currentUserId);
       if (!currentUser) throw new NotFoundError("Der angemeldete Benutzer ist nicht bekannt.");
+      const dates = scheduleDates(this.now());
+      const users = [...this.state.users].sort((a, b) =>
+        a.displayName.localeCompare(b.displayName, "de", { sensitivity: "base" }),
+      );
+      const month = previousCalendarMonth(dates.today);
+      const monthCounts = this.state.monthlyCompletions[month] ?? {};
+      const completedCount = Math.max(0, ...Object.values(monthCounts));
+      const leaders = completedCount === 0
+        ? []
+        : users.filter((user) => monthCounts[user.id] === completedCount);
 
       return {
         currentUser: structuredClone(currentUser),
-        users: structuredClone(
-          [...this.state.users].sort((a, b) =>
-            a.displayName.localeCompare(b.displayName, "de", { sensitivity: "base" }),
-          ),
-        ),
+        users: structuredClone(users),
         appointments: structuredClone(
           [...this.state.appointments].sort(
             (a, b) =>
@@ -176,7 +254,12 @@ export class StateStore {
               a.name.localeCompare(b.name, "de"),
           ),
         ),
-        dates: scheduleDates(this.now()),
+        dates,
+        employeeOfMonth: {
+          month,
+          leaders: structuredClone(leaders),
+          completedCount,
+        },
         fixedSlots: FIXED_SLOTS,
         limits: { maxAppointmentsPerSlot: MAX_APPOINTMENTS_PER_SLOT },
       };
@@ -189,10 +272,10 @@ export class StateStore {
     actorId: string,
   ): Promise<Appointment[]> {
     return this.enqueue(async () => {
-      this.cleanupState();
+      if (this.cleanupState()) await this.persist();
       const dates = scheduleDates(this.now());
-      if (date !== dates.today && date !== dates.nextWorkday) {
-        throw new StateValidationError("Termine können nur für heute oder den nächsten Arbeitstag erstellt werden.");
+      if (!dates.planningDays.includes(date)) {
+        throw new StateValidationError("Termine können nur für die fünf angezeigten Planungstage erstellt werden.");
       }
       if (!this.state.users.some((user) => user.id === actorId)) {
         throw new StateValidationError("Der angemeldete Benutzer ist nicht bekannt.");
@@ -226,7 +309,7 @@ export class StateStore {
     patch: AppointmentPatch,
   ): Promise<Appointment> {
     return this.enqueue(async () => {
-      this.cleanupState();
+      if (this.cleanupState()) await this.persist();
       const index = this.state.appointments.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError();
       const existing = this.state.appointments[index]!;
@@ -257,7 +340,7 @@ export class StateStore {
 
   async deleteAppointment(id: string, expectedVersion: number): Promise<void> {
     return this.enqueue(async () => {
-      this.cleanupState();
+      if (this.cleanupState()) await this.persist();
       const index = this.state.appointments.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError();
       const existing = this.state.appointments[index]!;
@@ -278,33 +361,60 @@ export class StateStore {
 
   private cleanupState(): boolean {
     const dates = scheduleDates(this.now());
-    const allowedDates = new Set([dates.today, dates.nextWorkday]);
+    const allowedDates = new Set(dates.planningDays);
     const allowedUsers = this.allowDevUsers
       ? this.state.users
       : this.state.users.filter((user) => user.source !== "dev");
     const allowedUserIds = new Set(allowedUsers.map((user) => user.id));
     let changed = allowedUsers.length !== this.state.users.length;
 
-    const appointments = this.state.appointments
-      .filter(
-        (appointment) =>
-          allowedDates.has(appointment.date) &&
-          (this.allowDevUsers || !appointment.createdBy.startsWith("dev:")),
-      )
-      .map((appointment) => {
-        if (appointment.assigneeId && !allowedUserIds.has(appointment.assigneeId)) {
+    for (const [month, counts] of Object.entries(this.state.monthlyCompletions)) {
+      for (const userId of Object.keys(counts)) {
+        if (!allowedUserIds.has(userId)) {
+          delete counts[userId];
           changed = true;
-          return {
-            ...appointment,
-            assigneeId: null,
-            updatedAt: this.now().toISOString(),
-            version: appointment.version + 1,
-          };
         }
-        return appointment;
-      });
+      }
+      if (Object.keys(counts).length === 0) {
+        delete this.state.monthlyCompletions[month];
+        changed = true;
+      }
+    }
 
-    if (appointments.length !== this.state.appointments.length) changed = true;
+    const appointments: Appointment[] = [];
+    for (const appointment of this.state.appointments) {
+      if (!this.allowDevUsers && appointment.createdBy.startsWith("dev:")) {
+        changed = true;
+        continue;
+      }
+      if (appointment.date < dates.today) {
+        if (appointment.assigneeId && allowedUserIds.has(appointment.assigneeId)) {
+          recordMonthlyCompletion(
+            this.state.monthlyCompletions,
+            appointment.date,
+            appointment.assigneeId,
+          );
+        }
+        changed = true;
+        continue;
+      }
+      if (!allowedDates.has(appointment.date)) {
+        changed = true;
+        continue;
+      }
+      if (appointment.assigneeId && !allowedUserIds.has(appointment.assigneeId)) {
+        appointments.push({
+          ...appointment,
+          assigneeId: null,
+          updatedAt: this.now().toISOString(),
+          version: appointment.version + 1,
+        });
+        changed = true;
+        continue;
+      }
+      appointments.push(appointment);
+    }
+
     if (changed) {
       this.state = { ...this.state, users: allowedUsers, appointments };
     }

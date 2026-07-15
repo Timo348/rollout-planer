@@ -72,5 +72,9 @@ export function nextWorkday(afterDate: string): string {
 
 export function scheduleDates(now: Date = new Date()): ScheduleDates {
   const today = dateInTimeZone(now);
-  return { today, nextWorkday: nextWorkday(today) };
+  const planningDays = [today];
+  while (planningDays.length < 5) {
+    planningDays.push(nextWorkday(planningDays.at(-1)!));
+  }
+  return { today, nextWorkday: planningDays[1]!, planningDays };
 }

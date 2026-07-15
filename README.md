@@ -1,6 +1,6 @@
 # Rollout Planer
 
-Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team plant Termine für heute oder den nächsten Arbeitstag, weist sie bekannten Teammitgliedern zu und kann feste sowie eigene Uhrzeiten verwenden.
+Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team plant Termine für fünf aufeinanderfolgende Planungstage, weist sie bekannten Teammitgliedern zu und kann feste sowie eigene Uhrzeiten verwenden.
 
 ## Eigenschaften
 
@@ -8,6 +8,8 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - optionaler, ausschließlich per Entwicklungsmodus freischaltbarer Dev-Login
 - keine Rollen: Jeder angemeldete Benutzer besitzt dieselben Rechte
 - eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 20 MB) mit Initialen als Fallback
+- fünf Planungstage ab heute; Wochenenden und Feiertage werden bei den Folgetagen übersprungen
+- Mitarbeiter des Monats anhand vergangener, zugewiesener Termine des zuletzt vollständig abgeschlossenen Kalendermonats, dauerhaft in der JSON-Datei gezählt
 - feste Uhrzeiten 08–09, 09–10, 10–11, 11–12, 12–13 und 13–14 Uhr
 - zusätzliche eigene Uhrzeit über „Von“ und „Bis“
 - Schieberegler für 1–4 Termine sowie manuelle Sonderanzahl bis 50
@@ -63,7 +65,8 @@ Authentik selbst ist nicht Bestandteil dieser Compose-Datei; die Anwendung verbi
 
 Die Datei `/app/data/rollout-state.json` liegt im benannten Volume `rollout-planer-data`. Gespeichert werden:
 
-- Termine für heute und den nächsten Arbeitstag
+- Termine für die fünf angezeigten Planungstage
+- monatliche Abschlussstatistik nach vollständigen Kalendermonaten statt rollierenden 30 Tagen
 - Benutzer, die sich mindestens einmal erfolgreich angemeldet haben
 - Profilbilder im Unterordner `avatars` desselben Docker-Volumes
 

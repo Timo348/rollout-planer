@@ -5,6 +5,7 @@ import {
   ChevronDown,
   CircleUserRound,
   Clock3,
+  Crown,
   ImagePlus,
   LayoutDashboard,
   LoaderCircle,
@@ -39,6 +40,28 @@ function formatDateShort(date: string): string {
     month: "2-digit",
     timeZone: "UTC",
   }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function formatWeekday(date: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    weekday: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function formatDayMonth(date: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function formatMonth(month: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${month}-01T12:00:00Z`));
 }
 
 function formatTime(start: string, end: string): string {
@@ -270,9 +293,9 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       const next = await api.bootstrap();
       setData(next);
       setSelectedDate((current) =>
-        current === next.dates.today || current === next.dates.nextWorkday
+        next.dates.planningDays.includes(current)
           ? current
-          : next.dates.today,
+          : next.dates.planningDays[0]!,
       );
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) return onLoggedOut();
@@ -454,15 +477,39 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
           <button className="sidebar-nav__item is-active" type="button"><LayoutDashboard size={18} />Terminübersicht</button>
         </nav>
         <section className="sidebar-planning" aria-label="Tag auswählen">
-          <span className="sidebar-nav__label">Planungstag</span>
-          <button className={selectedDate === data.dates.today ? "sidebar-day is-active" : "sidebar-day"} type="button" onClick={() => setSelectedDate(data.dates.today)}>
-            <span className="sidebar-day__icon"><CalendarDays size={17} /></span><span><small>Heute</small><strong>{formatDateShort(data.dates.today)}</strong></span>{selectedDate === data.dates.today && <Check size={14} />}
-          </button>
-          <button className={selectedDate === data.dates.nextWorkday ? "sidebar-day is-active" : "sidebar-day"} type="button" onClick={() => setSelectedDate(data.dates.nextWorkday)}>
-            <span className="sidebar-day__icon"><CalendarDays size={17} /></span><span><small>Nächster Arbeitstag</small><strong>{formatDateShort(data.dates.nextWorkday)}</strong></span>{selectedDate === data.dates.nextWorkday && <Check size={14} />}
-          </button>
+          <span className="sidebar-nav__label">Planungstage</span>
+          <div className="sidebar-days">
+            {data.dates.planningDays.map((date) => (
+              <button className={selectedDate === date ? "sidebar-day is-active" : "sidebar-day"} type="button" key={date} onClick={() => setSelectedDate(date)}>
+                <span className="sidebar-day__icon"><CalendarDays size={15} /></span>
+                <span><small>{date === data.dates.today ? "Heute" : formatWeekday(date)}</small><strong>{formatDayMonth(date)}</strong></span>
+                {selectedDate === date && <Check size={13} />}
+              </button>
+            ))}
+          </div>
           <div className="sidebar-stats" aria-label="Kennzahlen des ausgewählten Tages">
             <div><strong>{selectedAppointments.length}</strong><span>Termine</span></div><div><strong>{free}</strong><span>Noch frei</span></div><div><strong>{mine}</strong><span>Meine</span></div>
+          </div>
+          <div className={data.employeeOfMonth.leaders.length ? "employee-month" : "employee-month employee-month--empty"} aria-label={`Mitarbeiter des Monats ${formatMonth(data.employeeOfMonth.month)}`}>
+            <span className="employee-month__label">Mitarbeiter des Monats · {formatMonth(data.employeeOfMonth.month)}</span>
+            {data.employeeOfMonth.leaders.length ? (
+              <div className="employee-month__content">
+                <span className="employee-month__portraits">
+                  {data.employeeOfMonth.leaders.map((user) => (
+                    <span className="employee-month__portrait" key={user.id}>
+                      <Crown className="employee-month__crown" size={14} />
+                      <UserAvatar user={user} className="avatar avatar--month" />
+                    </span>
+                  ))}
+                </span>
+                <span className="employee-month__copy">
+                  <strong>{data.employeeOfMonth.leaders.length === 1 ? data.employeeOfMonth.leaders[0]!.displayName : "Gleichstand"}</strong>
+                  <small>{data.employeeOfMonth.leaders.length === 1
+                    ? `${data.employeeOfMonth.completedCount} ${data.employeeOfMonth.completedCount === 1 ? "Termin erledigt" : "Termine erledigt"}`
+                    : `${data.employeeOfMonth.leaders.map((user) => user.displayName).join(" · ")} · je ${data.employeeOfMonth.completedCount}`}</small>
+                </span>
+              </div>
+            ) : <small className="employee-month__empty">Noch keine abgeschlossenen Termine</small>}
           </div>
         </section>
         {profileOpen && (
