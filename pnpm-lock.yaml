@@ -17,6 +17,9 @@ importers:
       '@fastify/static':
         specifier: ^8.3.0
         version: 8.3.0
+      '@fontsource/barlow':
+        specifier: ^5.2.8
+        version: 5.2.8
       fastify:
         specifier: ^5.9.0
         version: 5.10.0
@@ -334,6 +337,9 @@ packages:
 
   '@fastify/static@8.3.0':
     resolution: {integrity: sha512-yKxviR5PH1OKNnisIzZKmgZSus0r2OZb8qCSbqmw34aolT4g3UlzYfeBRym+HJ1J471CR8e2ldNub4PubD1coA==}
+
+  '@fontsource/barlow@5.2.8':
+    resolution: {integrity: sha512-iuFOnY4OI2cd1STrJ3NdJNzWjhcwv6JarmqfdoZzAmz9g0jTVjES86MNbuBxqVR3ydbTEjo4opEl24GXScRM7w==}
 
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
@@ -1399,6 +1405,8 @@ snapshots:
       fastify-plugin: 5.1.0
       fastq: 1.20.1
       glob: 11.1.0
+
+  '@fontsource/barlow@5.2.8': {}
 
   '@isaacs/cliui@9.0.0': {}
 
