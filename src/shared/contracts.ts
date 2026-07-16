@@ -36,12 +36,6 @@ export interface ScheduleDates {
   planningDays: string[];
 }
 
-export interface EmployeeOfMonth {
-  month: string;
-  leaders: AppUser[];
-  completedCount: number;
-}
-
 export interface FixedSlot {
   startTime: string;
   endTime: string;
@@ -56,7 +50,6 @@ export interface BootstrapResponse {
   users: AppUser[];
   appointments: Appointment[];
   dates: ScheduleDates;
-  employeeOfMonth: EmployeeOfMonth;
   fixedSlots: FixedSlot[];
   limits: {
     maxAppointmentsPerSlot: number;
