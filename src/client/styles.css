@@ -1039,103 +1039,6 @@ select {
   white-space: nowrap;
 }
 
-.employee-month {
-  position: relative;
-  margin-top: auto;
-  margin-bottom: 14px;
-  padding: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(222, 220, 0, 0.18);
-  border-radius: 16px;
-  background: linear-gradient(145deg, rgba(222, 220, 0, 0.12), rgba(255, 255, 255, 0.045));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.07);
-}
-
-.employee-month::after {
-  position: absolute;
-  right: -23px;
-  bottom: -31px;
-  width: 78px;
-  height: 78px;
-  border: 14px solid rgba(222, 220, 0, 0.06);
-  border-radius: 50%;
-  content: "";
-}
-
-.employee-month__label {
-  display: block;
-  color: var(--inter-lime);
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.employee-month__content {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.employee-month__portraits {
-  display: flex;
-}
-
-.employee-month__portrait {
-  position: relative;
-  margin-right: -7px;
-}
-
-.employee-month__crown {
-  position: absolute;
-  z-index: 2;
-  top: -8px;
-  left: 12px;
-  color: var(--inter-lime);
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.32));
-  transform: rotate(-8deg);
-}
-
-.avatar--month {
-  width: 35px;
-  height: 35px;
-  flex-basis: 35px;
-  border-radius: 11px;
-  font-size: 9px;
-}
-
-.employee-month__copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.employee-month__copy strong {
-  overflow: hidden;
-  color: white;
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.employee-month__copy small,
-.employee-month__empty {
-  color: rgba(255, 255, 255, 0.44);
-  font-size: 7px;
-  line-height: 1.35;
-}
-
-.employee-month--empty {
-  padding-bottom: 13px;
-}
-
-.employee-month--empty .employee-month__empty {
-  margin-top: 8px;
-  display: block;
-}
-
 .sidebar-user {
   min-height: 61px;
   padding: 10px 7px;
@@ -2741,8 +2644,7 @@ select {
   .sidebar-nav { display: none; }
   .sidebar-planning { min-width: 0; margin: 0; display: block; }
   .sidebar-planning > .sidebar-nav__label,
-  .sidebar-stats,
-  .employee-month { display: none; }
+  .sidebar-stats { display: none; }
   .sidebar-days { flex-direction: row; gap: 7px; overflow-x: auto; }
   .sidebar-day { min-width: 124px; min-height: 44px; padding: 4px 8px 4px 5px; grid-template-columns: 32px minmax(0, 1fr) 12px; }
   .sidebar-day.is-active { transform: none; }
@@ -2845,8 +2747,6 @@ select {
   .sidebar-day { min-height: 44px; }
   .sidebar-day__icon { width: 31px; height: 31px; }
   .sidebar-stats { margin-top: 9px; padding-top: 8px; padding-bottom: 8px; }
-  .employee-month { margin-bottom: 8px; padding: 9px 11px; }
-  .employee-month__content { margin-top: 8px; }
   .workspace { padding-top: 19px; padding-bottom: 20px; }
   .workspace-header { min-height: 54px; margin-bottom: 14px; }
   .schedule-heading { min-height: 67px; padding-top: 12px; padding-bottom: 12px; }

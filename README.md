@@ -10,7 +10,6 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - lokale Benutzerverwaltung für Mitglieder der Authentik-Gruppe `rollout-planner-admin`
 - eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 20 MB) mit Initialen als Fallback
 - fünf Planungstage ab heute; Wochenenden und Feiertage werden bei den Folgetagen übersprungen
-- Mitarbeiter des Monats anhand vergangener, zugewiesener Termine des zuletzt vollständig abgeschlossenen Kalendermonats, dauerhaft in der JSON-Datei gezählt
 - feste Uhrzeiten 08–09, 09–10, 10–11, 11–12, 12–13 und 13–14 Uhr
 - zusätzliche eigene Uhrzeit über „Von“ und „Bis“
 - Schieberegler für 1–4 Termine sowie manuelle Sonderanzahl bis 50
@@ -67,7 +66,7 @@ Authentik selbst ist nicht Bestandteil dieser Compose-Datei; die Anwendung verbi
 
 Mitglieder der Authentik-Gruppe `rollout-planner-admin` sehen neben „Termine erstellen“ die Benutzerverwaltung. Die Berechtigung wird aus dem verifizierten Gruppen-Claim abgeleitet, in der signierten App-Sitzung gespeichert und zusätzlich bei jeder Löschanfrage serverseitig geprüft. Nach dem Update oder einer Gruppenänderung müssen sich betroffene Administratoren einmal ab- und wieder anmelden.
 
-„Benutzer löschen“ entfernt ausschließlich das lokale Profil aus dem Rollout Planer. Dabei werden das Profilbild und die Monatsstatistik der Person entfernt; ihre noch zugewiesenen Termine bleiben bestehen und werden wieder frei. Das Authentik-Konto selbst wird nicht verändert. Solange das Konto in Authentik weiterhin Zugriff besitzt, kann sich die Person erneut anmelden und wird dann lokal wieder angelegt. Das eigene aktuell angemeldete Profil kann nicht gelöscht werden.
+„Benutzer löschen“ entfernt ausschließlich das lokale Profil aus dem Rollout Planer. Dabei wird das Profilbild der Person entfernt; ihre noch zugewiesenen Termine bleiben bestehen und werden wieder frei. Das Authentik-Konto selbst wird nicht verändert. Solange das Konto in Authentik weiterhin Zugriff besitzt, kann sich die Person erneut anmelden und wird dann lokal wieder angelegt. Das eigene aktuell angemeldete Profil kann nicht gelöscht werden.
 
 Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich aktivierten Entwicklungsmodus, damit der Ablauf lokal getestet werden kann. Im Produktionsmodus bleibt dieser Zugang vollständig deaktiviert.
 
@@ -76,7 +75,6 @@ Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich
 Die Datei `/app/data/rollout-state.json` liegt im benannten Volume `rollout-planer-data`. Gespeichert werden:
 
 - Termine für die fünf angezeigten Planungstage
-- monatliche Abschlussstatistik nach vollständigen Kalendermonaten statt rollierenden 30 Tagen
 - Benutzer, die sich mindestens einmal erfolgreich angemeldet haben
 - Profilbilder im Unterordner `avatars` desselben Docker-Volumes
 

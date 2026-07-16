@@ -40,10 +40,10 @@ describe("StateStore", () => {
     await second.initialize();
     const snapshot = await second.getBootstrap("oidc:alice");
     expect(snapshot.appointments.map((entry) => entry.name)).toEqual(["Kunde A", "Kunde B"]);
-    expect(JSON.parse(await readFile(file, "utf8")).schemaVersion).toBe(3);
+    expect(JSON.parse(await readFile(file, "utf8")).schemaVersion).toBe(4);
   });
 
-  it("migriert die bisherige JSON-Struktur ohne aktive Termine vorzeitig zu zählen", async () => {
+  it("migriert die ursprüngliche JSON-Struktur auf das aktuelle Schema", async () => {
     const file = await temporaryFile();
     await writeFile(file, JSON.stringify({
       schemaVersion: 1,
@@ -65,16 +65,13 @@ describe("StateStore", () => {
     const store = new StateStore(file, () => new Date("2026-07-15T08:00:00.000Z"), false);
     await store.initialize();
     const snapshot = await store.getBootstrap("oidc:alice");
-    expect(snapshot.employeeOfMonth.completedCount).toBe(0);
-    const raw = JSON.parse(await readFile(file, "utf8")) as {
-      schemaVersion: number;
-      monthlyCompletions: Record<string, Record<string, number>>;
-    };
-    expect(raw.schemaVersion).toBe(3);
-    expect(raw.monthlyCompletions).toEqual({});
+    expect(snapshot.appointments).toHaveLength(1);
+    const raw = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+    expect(raw.schemaVersion).toBe(4);
+    expect(raw).not.toHaveProperty("monthlyCompletions");
   });
 
-  it("behält bei einer Zwischenmigration abgeschlossene Monate und verwirft den laufenden", async () => {
+  it("verwirft bei der Migration die nicht mehr benötigte Monatsstatistik", async () => {
     const file = await temporaryFile();
     await writeFile(file, JSON.stringify({
       schemaVersion: 2,
@@ -100,15 +97,11 @@ describe("StateStore", () => {
     const store = new StateStore(file, () => new Date("2026-07-15T08:00:00.000Z"), false);
     await store.initialize();
     const snapshot = await store.getBootstrap("oidc:alice");
-    expect(snapshot.employeeOfMonth.month).toBe("2026-06");
-    expect(snapshot.employeeOfMonth.completedCount).toBe(4);
-    const raw = JSON.parse(await readFile(file, "utf8")) as {
-      schemaVersion: number;
-      monthlyCompletions: Record<string, Record<string, number>>;
-    };
-    expect(raw.schemaVersion).toBe(3);
-    expect(raw.monthlyCompletions).toEqual({ "2026-06": { "oidc:alice": 4 } });
-    expect((await store.getBootstrap("oidc:alice")).appointments).toHaveLength(0);
+    expect(snapshot.appointments).toHaveLength(0);
+    const raw = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+    expect(raw.schemaVersion).toBe(4);
+    expect(raw).not.toHaveProperty("monthlyAssignments");
+    expect(raw).not.toHaveProperty("monthlyCompletions");
   });
 
   it("erkennt konkurrierende Änderungen über die Versionsnummer", async () => {
@@ -134,7 +127,7 @@ describe("StateStore", () => {
     expect(snapshot.users).toHaveLength(1);
   });
 
-  it("erlaubt alle fünf Planungstage und behält Monatswerte nach dem Tageswechsel", async () => {
+  it("erlaubt alle fünf Planungstage und entfernt vergangene Termine", async () => {
     const file = await temporaryFile();
     let now = new Date("2026-07-15T08:00:00.000Z");
     const store = new StateStore(file, () => now, false);
@@ -157,77 +150,6 @@ describe("StateStore", () => {
     now = new Date("2026-08-03T08:00:00.000Z");
     const august = await store.getBootstrap("oidc:alice");
     expect(august.appointments).toHaveLength(0);
-    expect(august.employeeOfMonth.month).toBe("2026-07");
-    expect(august.employeeOfMonth.completedCount).toBe(1);
-    expect(august.employeeOfMonth.leaders.map((leader) => leader.id)).toEqual(["oidc:alice"]);
-    const raw = JSON.parse(await readFile(file, "utf8")) as {
-      monthlyCompletions: Record<string, Record<string, number>>;
-    };
-    expect(raw.monthlyCompletions["2026-07"]?.["oidc:alice"]).toBe(1);
-  });
-
-  it("zählt einen zugewiesenen Termin erst nach dem Tageswechsel", async () => {
-    const file = await temporaryFile();
-    let now = new Date("2026-07-15T08:00:00.000Z");
-    const store = new StateStore(file, () => now, false);
-    await store.initialize();
-    await store.upsertUser(user());
-    const [appointment] = await store.createBatch(
-      "2026-07-15",
-      [{ startTime: "10:00", endTime: "11:00", names: ["Erledigt"] }],
-      "oidc:alice",
-    );
-    await store.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });
-    expect((await store.getBootstrap("oidc:alice")).employeeOfMonth.completedCount).toBe(0);
-
-    now = new Date("2026-07-16T08:00:00.000Z");
-    expect((await store.getBootstrap("oidc:alice")).employeeOfMonth.completedCount).toBe(0);
-    now = new Date("2026-08-01T08:00:00.000Z");
-    const completed = await store.getBootstrap("oidc:alice");
-    expect(completed.employeeOfMonth.month).toBe("2026-07");
-    expect(completed.employeeOfMonth.completedCount).toBe(1);
-    expect(completed.employeeOfMonth.leaders.map((leader) => leader.id)).toEqual(["oidc:alice"]);
-  });
-
-  it("zählt vor dem Tageswechsel aufgehobene oder gelöschte Zuweisungen nicht", async () => {
-    const file = await temporaryFile();
-    let now = new Date("2026-07-15T08:00:00.000Z");
-    const store = new StateStore(file, () => now, false);
-    await store.initialize();
-    await store.upsertUser(user());
-    const [first, second] = await store.createBatch(
-      "2026-07-15",
-      [{ startTime: "10:00", endTime: "11:00", names: ["A", "B"] }],
-      "oidc:alice",
-    );
-    const assignedFirst = await store.updateAppointment(first!.id, 1, { assigneeId: "oidc:alice" });
-    const assignedSecond = await store.updateAppointment(second!.id, 1, { assigneeId: "oidc:alice" });
-    expect((await store.getBootstrap("oidc:alice")).employeeOfMonth.completedCount).toBe(0);
-
-    await store.updateAppointment(assignedFirst.id, assignedFirst.version, { assigneeId: null });
-    await store.deleteAppointment(assignedSecond.id, assignedSecond.version);
-    now = new Date("2026-08-01T08:00:00.000Z");
-    expect((await store.getBootstrap("oidc:alice")).employeeOfMonth.completedCount).toBe(0);
-  });
-
-  it("liefert bei gleicher Abschlusszahl alle Monatsführenden", async () => {
-    const file = await temporaryFile();
-    let now = new Date("2026-07-15T08:00:00.000Z");
-    const store = new StateStore(file, () => now, false);
-    await store.initialize();
-    await store.upsertUser(user("oidc:alice"));
-    await store.upsertUser(user("oidc:bob"));
-    const [aliceAppointment, bobAppointment] = await store.createBatch(
-      "2026-07-15",
-      [{ startTime: "10:00", endTime: "11:00", names: ["A", "B"] }],
-      "oidc:alice",
-    );
-    await store.updateAppointment(aliceAppointment!.id, 1, { assigneeId: "oidc:alice" });
-    await store.updateAppointment(bobAppointment!.id, 1, { assigneeId: "oidc:bob" });
-    now = new Date("2026-08-01T08:00:00.000Z");
-    const result = await store.getBootstrap("oidc:alice");
-    expect(result.employeeOfMonth.completedCount).toBe(1);
-    expect(result.employeeOfMonth.leaders.map((leader) => leader.id)).toEqual(["oidc:alice", "oidc:bob"]);
   });
 
   it("entfernt Entwicklungsbenutzer im sicheren Modus", async () => {
@@ -244,26 +166,7 @@ describe("StateStore", () => {
     expect(raw.appointments).toHaveLength(0);
   });
 
-  it("zählt vergangene Entwicklungstermine im Produktionsmodus nicht", async () => {
-    const file = await temporaryFile();
-    const devStore = new StateStore(file, () => new Date("2026-07-15T08:00:00.000Z"), true);
-    await devStore.initialize();
-    await devStore.upsertUser(user("oidc:alice"));
-    await devStore.upsertUser(user("dev:local"));
-    const [appointment] = await devStore.createBatch(
-      "2026-07-15",
-      [{ startTime: "08:00", endTime: "09:00", names: ["Dev-Termin"] }],
-      "dev:local",
-    );
-    await devStore.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });
-
-    const productionStore = new StateStore(file, () => new Date("2026-07-16T08:00:00.000Z"), false);
-    await productionStore.initialize();
-    const result = await productionStore.getBootstrap("oidc:alice");
-    expect(result.employeeOfMonth.completedCount).toBe(0);
-  });
-
-  it("löscht einen Benutzer samt Monatswerten und hebt seine Zuweisungen atomar auf", async () => {
+  it("löscht einen Benutzer und hebt seine Zuweisungen atomar auf", async () => {
     const file = await temporaryFile();
     const alice = user("oidc:alice");
     const bob = { ...user("oidc:bob"), username: "bob", displayName: "Bob Beispiel" };
@@ -305,9 +208,8 @@ describe("StateStore", () => {
       }),
     ]);
 
-    const persisted = JSON.parse(await readFile(file, "utf8")) as {
-      monthlyCompletions: Record<string, Record<string, number>>;
-    };
-    expect(persisted.monthlyCompletions).toEqual({ "2026-06": { "oidc:alice": 1 } });
+    const persisted = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+    expect(persisted.schemaVersion).toBe(4);
+    expect(persisted).not.toHaveProperty("monthlyCompletions");
   });
 });
