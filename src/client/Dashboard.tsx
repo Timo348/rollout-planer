@@ -9,9 +9,11 @@ import {
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  Moon,
   Pencil,
   Plus,
   RefreshCw,
+  Sun,
   Trash2,
   UserCheck,
   UserRoundX,
@@ -23,6 +25,7 @@ import { createPortal } from "react-dom";
 import type { AppUser, Appointment, BootstrapResponse, FixedSlot } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { ConfirmDialog, CreateDialog, EditDialog } from "./Dialogs";
+import { useTheme } from "./theme";
 
 function formatDateLong(date: string): string {
   return new Intl.DateTimeFormat("de-DE", {
@@ -353,6 +356,7 @@ function UserManagementDialog({
 
 export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; onLoggedOut: () => void }) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
+  const [theme, toggleTheme] = useTheme();
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -617,6 +621,13 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
         <header className="workspace-header">
           <div><p className="eyebrow">Windows 11 Rollout</p><h1>Terminübersicht</h1></div>
           <div className="workspace-header__actions">
+            <button
+              className="icon-button theme-toggle"
+              type="button"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Zum Hellmodus wechseln" : "Zum Dunkelmodus wechseln"}
+              title={theme === "dark" ? "Hellmodus" : "Dunkelmodus"}
+            >{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</button>
             <button className="icon-button refresh-button" type="button" onClick={() => void load(true)} disabled={refreshing} aria-label="Ansicht aktualisieren" title="Aktualisieren"><RefreshCw className={refreshing ? "spin" : ""} size={17} /></button>
             {data.permissions.manageUsers && <button className="button button--ghost button--manage-users" type="button" onClick={() => setUserManagementOpen(true)}><UsersRound size={17} />Benutzerverwaltung</button>}
             <button className="button button--primary button--create" type="button" onClick={() => openCreateDialog()}><Plus size={18} />Termine erstellen</button>
