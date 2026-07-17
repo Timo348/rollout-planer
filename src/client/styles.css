@@ -36,7 +36,6 @@
 html, body, #root { min-height: 100%; margin: 0; }
 
 body {
-  min-width: 1100px;
   min-height: 100vh;
   background: #f4f6fa;
 }
@@ -613,3 +612,88 @@ h1, h2, h3, p { margin-top: 0; }
 
 [data-theme="dark"] .toast { border-color: #1f4d40; color: #4fd2ab; background: #14261f; }
 [data-theme="dark"] .toast--error { border-color: #5a3038; color: #e07888; background: #2a1a1e; }
+
+
+/* Responsive */
+.nav-toggle { display: none; }
+.sidebar-backdrop { display: none; }
+
+/* Schmale Desktops und Tablets */
+@media (max-width: 1150px) {
+  .app-shell { grid-template-columns: 240px minmax(0, 1fr); }
+  .workspace { padding: 16px 18px 14px; }
+  .workspace-header h1 { font-size: 24px; }
+}
+
+/* Sidebar wird zum einschiebbaren Menü */
+@media (max-width: 920px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); min-height: 480px; }
+  .sidebar {
+    position: fixed;
+    z-index: 90;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(300px, 84vw);
+    height: auto;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+  .sidebar.is-open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    z-index: 80;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    background: rgba(8, 13, 28, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .nav-toggle { display: inline-flex; }
+  .workspace { padding: 14px 14px 12px; }
+  .workspace-header { flex-wrap: wrap; gap: 12px; }
+  .workspace-header h1 { font-size: 22px; }
+  .workspace-header__actions { flex-wrap: wrap; gap: 7px; }
+  .button--manage-users { min-width: 0; }
+  .button--create { min-width: 0; }
+  .schedule-heading { flex-wrap: wrap; gap: 8px; }
+  .legend { gap: 12px; }
+  .time-row, .schedule--four .time-row, .schedule--five .time-row, .schedule--six .time-row, .schedule--dense .time-row { grid-template-columns: 110px minmax(0, 1fr); }
+  .time-row__label, .schedule--four .time-row__label, .schedule--five .time-row__label, .schedule--six .time-row__label, .schedule--dense .time-row__label { padding: 8px 10px; }
+}
+
+/* Login stapelt sich auf kleinen Screens */
+@media (max-width: 1020px) {
+  .login-page { grid-template-columns: 1fr; }
+  .login-visual { display: none; }
+  .login-panel { min-height: 100vh; padding: 40px 22px; }
+}
+
+/* Smartphones */
+@media (max-width: 620px) {
+  .workspace-header h1 { font-size: 20px; }
+  .button { padding: 0 12px; font-size: 12px; }
+  .appointment-card { min-width: 230px; flex-basis: 230px; }
+  .time-row, .schedule--four .time-row, .schedule--five .time-row, .schedule--six .time-row, .schedule--dense .time-row { grid-template-columns: 92px minmax(0, 1fr); }
+  .time-row__icon, .schedule--four .time-row__icon, .schedule--five .time-row__icon, .schedule--six .time-row__icon, .schedule--dense .time-row__icon { display: none; }
+  .time-row__label strong, .schedule--four .time-row__label strong, .schedule--five .time-row__label strong, .schedule--six .time-row__label strong, .schedule--dense .time-row__label strong { font-size: 10px; }
+  .schedule-heading h2 { font-size: 15px; }
+  .date-choice { grid-template-columns: 1fr; }
+  .date-choice--compact { grid-template-columns: repeat(2, 1fr); }
+  .slot-picker { grid-template-columns: repeat(3, 1fr); }
+  .name-inputs { grid-template-columns: 1fr; }
+  .count-control__inputs { grid-template-columns: 1fr; }
+  .range-labels { width: 100%; }
+  .time-fields { grid-template-columns: 1fr; }
+  .time-fields > svg { display: none; }
+  .modal-backdrop { padding: 12px; }
+  .modal, .modal--wide, .modal--small, .modal--user-management, .modal--confirm { width: calc(100vw - 24px); }
+  .modal__body { padding: 16px; }
+  .confirm-actions { grid-template-columns: 1fr; }
+  .user-management__intro { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .user-management__intro p { text-align: left; }
+  .user-management__row { grid-template-columns: 40px minmax(0, 1fr); }
+  .user-management__delete { grid-column: 1 / -1; }
+  .toast { right: 12px; left: 12px; bottom: 12px; max-width: none; }
+}

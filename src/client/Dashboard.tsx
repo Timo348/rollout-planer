@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  Menu,
   Moon,
   Pencil,
   Plus,
@@ -357,6 +358,7 @@ function UserManagementDialog({
 export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; onLoggedOut: () => void }) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [theme, toggleTheme] = useTheme();
+  const [navOpen, setNavOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -564,7 +566,8 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {navOpen && <button className="sidebar-backdrop" type="button" aria-label="Menü schließen" onClick={() => setNavOpen(false)} />}
+      <aside className={navOpen ? "sidebar is-open" : "sidebar"}>
         <div className="brand-lockup brand-lockup--light">
           <div className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></div>
           <div><strong>Rollout</strong><small>Planer</small></div>
@@ -577,7 +580,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
           <span className="sidebar-nav__label">Planungstage</span>
           <div className="sidebar-days">
             {data.dates.planningDays.map((date) => (
-              <button className={selectedDate === date ? "sidebar-day is-active" : "sidebar-day"} type="button" key={date} onClick={() => setSelectedDate(date)}>
+              <button className={selectedDate === date ? "sidebar-day is-active" : "sidebar-day"} type="button" key={date} onClick={() => { setSelectedDate(date); setNavOpen(false); }}>
                 <span className="sidebar-day__icon"><CalendarDays size={15} /></span>
                 <span><small>{date === data.dates.today ? "Heute" : formatWeekday(date)}</small><strong>{formatDayMonth(date)}</strong></span>
                 {selectedDate === date && <Check size={13} />}
@@ -621,6 +624,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
         <header className="workspace-header">
           <div><p className="eyebrow">Windows 11 Rollout</p><h1>Terminübersicht</h1></div>
           <div className="workspace-header__actions">
+            <button className="icon-button nav-toggle" type="button" onClick={() => setNavOpen(true)} aria-label="Menü öffnen" title="Menü"><Menu size={17} /></button>
             <button
               className="icon-button theme-toggle"
               type="button"
