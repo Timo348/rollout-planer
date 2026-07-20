@@ -41,6 +41,9 @@ async function testConfig(devLoginEnabled = true): Promise<AppConfig> {
     devLoginEnabled,
     devLoginName: "Entwickler",
     devLoginUsername: "dev",
+    adminLoginEnabled: true,
+    adminUsername: "admin",
+    adminPassword: "admin",
     oidc: null,
     smtp: null,
   };
@@ -153,6 +156,38 @@ describe("Rollout API", () => {
     }
     bootstrap = (await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie } })).json<BootstrapResponse>();
     expect(bootstrap.appointments.filter((appointment) => appointment.assigneeId === initial.currentUser.id)).toHaveLength(2);
+  });
+
+  it("meldet den lokalen Administrator mit Benutzername und Passwort an", async () => {
+    const app = await createApp();
+    const wrong = await app.inject({
+      method: "POST",
+      url: "/api/auth/admin-login",
+      headers: { origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { username: "admin", password: "falsch" },
+    });
+    expect(wrong.statusCode).toBe(401);
+
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/auth/admin-login",
+      headers: { origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { username: "admin", password: "admin" },
+    });
+    expect(login.statusCode).toBe(200);
+    expect(login.json<{ user: AppUser }>().user).toMatchObject({
+      id: "local:admin",
+      username: "admin",
+      source: "local",
+    });
+
+    const cookie = cookieFrom(login);
+    const bootstrap = await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie } });
+    expect(bootstrap.statusCode).toBe(200);
+    expect(bootstrap.json<BootstrapResponse>().permissions).toEqual({ manageUsers: true });
+
+    const session = await app.inject({ method: "GET", url: "/api/session" });
+    expect(session.json()).toMatchObject({ adminLoginEnabled: true });
   });
 
   it("weist browserfremde Schreibzugriffe ab", async () => {

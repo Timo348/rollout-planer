@@ -1,4 +1,4 @@
-export type UserSource = "oidc" | "dev";
+export type UserSource = "oidc" | "dev" | "local";
 export type AvatarMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 export interface UserAvatar {
@@ -79,6 +79,7 @@ export interface SessionResponse {
   user: AppUser | null;
   devLoginEnabled: boolean;
   oidcEnabled: boolean;
+  adminLoginEnabled: boolean;
 }
 
 export interface ApiErrorBody {

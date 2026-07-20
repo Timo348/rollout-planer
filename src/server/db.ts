@@ -23,13 +23,15 @@ export async function openDatabase(connectionString: string): Promise<Database> 
       username TEXT NOT NULL,
       display_name TEXT NOT NULL,
       email TEXT,
-      source TEXT NOT NULL CHECK (source IN ('oidc', 'dev')),
+      source TEXT NOT NULL,
       last_seen_at TEXT NOT NULL,
       avatar_key TEXT,
       avatar_mime_type TEXT,
       avatar_updated_at TEXT
     )
   `);
+  // Bestand aus Version 3.0: alte Quellen-Einschränkung ohne 'local' entfernen.
+  await pool.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_source_check");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS appointments (
       id TEXT PRIMARY KEY,

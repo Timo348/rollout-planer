@@ -31,6 +31,9 @@ export interface AppConfig {
   devLoginEnabled: boolean;
   devLoginName: string;
   devLoginUsername: string;
+  adminLoginEnabled: boolean;
+  adminUsername: string;
+  adminPassword: string;
   oidc: OidcConfig | null;
   smtp: SmtpConfig | null;
 }
@@ -86,6 +89,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     devLoginEnabled,
     devLoginName: env.DEV_LOGIN_NAME?.trim() || "Entwickler",
     devLoginUsername: env.DEV_LOGIN_USERNAME?.trim() || "dev",
+    adminLoginEnabled: parseBoolean(env.ADMIN_LOGIN_ENABLED, true),
+    adminUsername: env.ADMIN_USERNAME?.trim() || "admin",
+    adminPassword: env.ADMIN_PASSWORD ?? "admin",
     oidc: hasOidc
       ? {
           issuer: env.OIDC_ISSUER!.replace(/\/$/, "") + "/",

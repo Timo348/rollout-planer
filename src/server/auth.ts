@@ -90,8 +90,10 @@ export class AuthService {
         algorithms: ["HS256"],
       });
       if (!payload.sub) return null;
-      const source = payload.source === "dev" ? "dev" : "oidc";
+      const source =
+        payload.source === "dev" ? "dev" : payload.source === "local" ? "local" : "oidc";
       if (source === "dev" && !this.config.devLoginEnabled) return null;
+      if (source === "local" && !this.config.adminLoginEnabled) return null;
       const permissions = payload.permissions;
       return {
         user: {
@@ -122,6 +124,19 @@ export class AuthService {
         username: this.config.devLoginUsername,
         displayName: this.config.devLoginName,
         source: "dev",
+        lastSeenAt: new Date().toISOString(),
+      },
+      permissions: { manageUsers: true },
+    };
+  }
+
+  createAdminUser(): SessionPrincipal {
+    return {
+      user: {
+        id: `local:${this.config.adminUsername}`,
+        username: this.config.adminUsername,
+        displayName: "Administrator",
+        source: "local",
         lastSeenAt: new Date().toISOString(),
       },
       permissions: { manageUsers: true },

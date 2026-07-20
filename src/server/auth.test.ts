@@ -19,6 +19,9 @@ function config(): AppConfig {
     devLoginEnabled: true,
     devLoginName: "Entwickler",
     devLoginUsername: "dev",
+    adminLoginEnabled: true,
+    adminUsername: "admin",
+    adminPassword: "admin",
     oidc: null,
     smtp: null,
   };

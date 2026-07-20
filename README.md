@@ -6,6 +6,7 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 
 - Authentik-Anmeldung über OAuth2/OpenID Connect mit Authorization Code, PKCE, `state` und `nonce`
 - optionaler, ausschließlich per Entwicklungsmodus freischaltbarer Dev-Login
+- lokaler Administrator-Zugang mit Benutzername und Passwort (Standard `admin`/`admin`, per Umgebungsvariable änderbar)
 - alle angemeldeten Benutzer dürfen Termine planen und verwalten
 - lokale Benutzerverwaltung für Mitglieder der Authentik-Gruppe `rollout-planner-admin`
 - eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 20 MB) mit Initialen als Fallback
@@ -62,6 +63,18 @@ DEV_LOGIN_ENABLED=false
 7. Image laden und Container starten: `docker compose pull` und danach `docker compose up -d`.
 
 Authentik selbst ist nicht Bestandteil dieser Compose-Datei; die Anwendung verbindet sich mit der bereits vorhandenen internen Instanz.
+
+## Lokaler Administrator-Zugang
+
+Zusätzlich zu Authentik gibt es einen lokalen Administrator-Zugang mit Benutzername und Passwort direkt auf der Anmeldeseite. Standard ist `admin`/`admin`; das Konto erhält die Berechtigung zur Benutzerverwaltung und erscheint als Benutzer `Administrator`. Zum Ändern oder Abschalten:
+
+```dotenv
+ADMIN_LOGIN_ENABLED=true
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=<eigenes-passwort>
+```
+
+Beim Deaktivieren (`ADMIN_LOGIN_ENABLED=false`) verlieren bestehende Administrator-Sitzungen sofort ihre Gültigkeit. Der Zugang ist für das interne Netz gedacht — in Produktion gehört mindestens ein eigenes Passwort her.
 
 ## Benutzerverwaltung
 

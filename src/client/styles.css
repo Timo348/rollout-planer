@@ -168,6 +168,10 @@ h1, h2, h3, p { margin-top: 0; }
 .login-panel h2 { margin: 0 0 14px; color: var(--ink-900); font-size: 32px; letter-spacing: -0.035em; }
 .login-panel__copy { margin-bottom: 28px; color: var(--ink-500); font-size: 14px; line-height: 1.7; }
 .login-panel .alert { margin-bottom: 16px; }
+.login-form { margin: 0 0 16px; display: flex; flex-direction: column; gap: 14px; }
+.login-form .field { font-size: 11px; }
+.login-form .field input { height: 44px; font-size: 13px; }
+.login-form .button { justify-content: center; }
 .login-security { margin-top: 25px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--ink-400); font-size: 11px; }
 
 /* Application shell */

@@ -48,6 +48,11 @@ export const api = {
   devLogin: () => request<{ user: BootstrapResponse["currentUser"] }>("/api/auth/dev-login", {
     method: "POST",
   }),
+  adminLogin: (username: string, password: string) =>
+    request<{ user: BootstrapResponse["currentUser"] }>("/api/auth/admin-login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   createAppointments: (payload: {
     date: string;

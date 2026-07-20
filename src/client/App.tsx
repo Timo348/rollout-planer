@@ -23,13 +23,17 @@ function LoginScreen({
   session,
   initialError,
   onDevLogin,
+  onAdminLogin,
 }: {
   session: SessionResponse;
   initialError: string;
   onDevLogin: () => Promise<void>;
+  onAdminLogin: (username: string, password: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initialError);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   const devLogin = async () => {
     setBusy(true);
@@ -38,6 +42,19 @@ function LoginScreen({
       await onDevLogin();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Entwicklungslogin fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const adminLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await onAdminLogin(username, password);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Anmeldung fehlgeschlagen.");
     } finally {
       setBusy(false);
     }
@@ -92,6 +109,35 @@ function LoginScreen({
             </a>
           )}
 
+          {session.adminLoginEnabled && (
+            <form className="login-form" onSubmit={adminLogin}>
+              <label className="field">
+                Benutzername
+                <input
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="field">
+                Passwort
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+              </label>
+              <button className="button button--primary button--large" type="submit" disabled={busy}>
+                {busy ? <LoaderCircle className="spin" size={18} /> : <ArrowRight size={18} />}
+                Anmelden
+              </button>
+            </form>
+          )}
+
           {session.devLoginEnabled && (
             <button
               className="button button--dev button--large"
@@ -123,7 +169,7 @@ export function App() {
       setSession(await api.session());
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : "Die Anwendung ist nicht erreichbar.");
-      setSession({ authenticated: false, user: null, devLoginEnabled: false, oidcEnabled: false });
+      setSession({ authenticated: false, user: null, devLoginEnabled: false, oidcEnabled: false, adminLoginEnabled: false });
     }
   };
 
@@ -145,6 +191,10 @@ export function App() {
         initialError={error}
         onDevLogin={async () => {
           await api.devLogin();
+          await loadSession();
+        }}
+        onAdminLogin={async (username, password) => {
+          await api.adminLogin(username, password);
           await loadSession();
         }}
       />

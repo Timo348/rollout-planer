@@ -23,7 +23,7 @@ const userSchema = z.object({
   username: z.string().min(1),
   displayName: z.string().min(1),
   email: z.string().optional(),
-  source: z.enum(["oidc", "dev"]),
+  source: z.enum(["oidc", "dev", "local"]),
   lastSeenAt: z.string(),
   avatar: z.object({
     key: z.string().regex(/^[0-9a-f-]+\.img$/),

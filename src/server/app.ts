@@ -197,6 +197,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
       user: principal?.user ?? null,
       devLoginEnabled: config.devLoginEnabled,
       oidcEnabled: Boolean(config.oidc),
+      adminLoginEnabled: config.adminLoginEnabled,
     };
   });
 
@@ -242,6 +243,32 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
       return reply.code(404).send({ error: "not_found", message: "Nicht gefunden." });
     }
     const principal = auth.createDevUser();
+    await store.upsertUser(principal.user);
+    const session = await auth.createSession(principal);
+    reply.setCookie(SESSION_COOKIE, session, {
+      ...cookieOptions(config),
+      maxAge: config.sessionTtlHours * 60 * 60,
+    });
+    return { user: principal.user };
+  });
+
+  const adminLoginSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+  });
+
+  app.post("/api/auth/admin-login", { preHandler: [verifyOrigin] }, async (request, reply) => {
+    if (!config.adminLoginEnabled) {
+      return reply.code(404).send({ error: "not_found", message: "Nicht gefunden." });
+    }
+    const payload = adminLoginSchema.parse(request.body);
+    if (payload.username !== config.adminUsername || payload.password !== config.adminPassword) {
+      return reply.code(401).send({
+        error: "unauthorized",
+        message: "Benutzername oder Passwort ist falsch.",
+      });
+    }
+    const principal = auth.createAdminUser();
     await store.upsertUser(principal.user);
     const session = await auth.createSession(principal);
     reply.setCookie(SESSION_COOKIE, session, {
