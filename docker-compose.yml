@@ -5,11 +5,34 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rollout}:${POSTGRES_PASSWORD:?Bitte POSTGRES_PASSWORD in der .env setzen}@db:5432/${POSTGRES_DB:-rollout}
     ports:
       - "${APP_PORT:-8080}:8080"
     volumes:
       - rollout-data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    container_name: rollout-planer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rollout}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Bitte POSTGRES_PASSWORD in der .env setzen}
+      POSTGRES_DB: ${POSTGRES_DB:-rollout}
+    volumes:
+      - rollout-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
 volumes:
   rollout-data:
     name: rollout-planer-data
+  rollout-db:
+    name: rollout-planer-db

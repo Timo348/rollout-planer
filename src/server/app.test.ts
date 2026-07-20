@@ -2,18 +2,25 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AppUser, BootstrapResponse } from "../shared/contracts.js";
 import { buildApp } from "./app.js";
 import { AuthService, SESSION_COOKIE, type SessionPrincipal } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import { StateStore } from "./store.js";
+import { createTestDatabase, resetTestDatabase } from "./testdb.js";
 
 const directories: string[] = [];
 const apps: FastifyInstance[] = [];
+let databaseUrl: string;
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.LOG_LEVEL = "silent";
+  databaseUrl = await createTestDatabase("rollout_test_app");
+});
+
+beforeEach(async () => {
+  await resetTestDatabase(databaseUrl);
 });
 
 async function testConfig(devLoginEnabled = true): Promise<AppConfig> {
@@ -24,6 +31,7 @@ async function testConfig(devLoginEnabled = true): Promise<AppConfig> {
     host: "127.0.0.1",
     port: 0,
     appBaseUrl: "http://localhost:8080",
+    databaseUrl,
     dataFile: path.join(directory, "state.json"),
     staticDir: path.join(directory, "public"),
     sessionSecret: "test-session-secret-with-at-least-thirty-two-characters",
@@ -34,6 +42,7 @@ async function testConfig(devLoginEnabled = true): Promise<AppConfig> {
     devLoginName: "Entwickler",
     devLoginUsername: "dev",
     oidc: null,
+    smtp: null,
   };
 }
 
@@ -158,7 +167,7 @@ describe("Rollout API", () => {
 
   it("schützt die Benutzerlöschung serverseitig und sperrt die Sitzung des entfernten Benutzers", async () => {
     const config = await testConfig(true);
-    const store = new StateStore(config.dataFile, () => new Date("2026-07-15T08:00:00.000Z"), true);
+    const store = new StateStore(config.databaseUrl, () => new Date("2026-07-15T08:00:00.000Z"), true, config.dataFile);
     await store.initialize();
     const bob = oidcUser("oidc:bob", "bob");
     await store.upsertUser(bob);

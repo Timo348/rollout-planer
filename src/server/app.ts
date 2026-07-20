@@ -20,6 +20,8 @@ import {
 } from "./avatars.js";
 import type { AppConfig } from "./config.js";
 import { MAX_APPOINTMENTS_PER_SLOT } from "./constants.js";
+import { createSmtpTransport } from "./mailer.js";
+import { startDailyAgendaScheduler } from "./scheduler.js";
 import {
   ConflictError,
   NotFoundError,
@@ -98,8 +100,26 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     trustProxy: config.trustProxy,
     bodyLimit: 256 * 1024,
   });
-  const store = storeOverride ?? new StateStore(config.dataFile, () => new Date(), config.devLoginEnabled);
+  const store = storeOverride ?? new StateStore(
+    config.databaseUrl,
+    () => new Date(),
+    config.devLoginEnabled,
+    config.dataFile,
+  );
   await store.initialize();
+  app.addHook("onClose", async () => {
+    await store.close();
+  });
+  if (config.smtp) {
+    const stopAgendaScheduler = startDailyAgendaScheduler(
+      store,
+      createSmtpTransport(config.smtp),
+      app.log,
+    );
+    app.addHook("onClose", async () => {
+      stopAgendaScheduler();
+    });
+  }
   const avatars = new AvatarStore(path.join(path.dirname(config.dataFile), "avatars"));
   await avatars.initialize();
   const auth = new AuthService(config);

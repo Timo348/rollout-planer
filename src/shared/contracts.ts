@@ -30,6 +30,23 @@ export interface Appointment {
   version: number;
 }
 
+export interface AppointmentHistoryEntry {
+  appointmentId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  name: string;
+  assigneeId: string | null;
+  assigneeUsername: string | null;
+  assigneeDisplayName: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  archivedAt: string;
+  reason: string;
+}
+
 export interface ScheduleDates {
   today: string;
   nextWorkday: string;

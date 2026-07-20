@@ -14,8 +14,9 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - zusätzliche eigene Uhrzeit über „Von“ und „Bis“
 - Schieberegler für 1–4 Termine sowie manuelle Sonderanzahl bis 50
 - Offline-Berechnung der gesetzlichen Feiertage in Baden-Württemberg
-- keine Datenbank: atomar geschriebene JSON-Datei im Docker-Volume
-- kein Archiv: Abgelaufene Termine werden automatisch entfernt
+- PostgreSQL-Datenbank als eigener Compose-Dienst; bestehender JSON-Bestand wird beim ersten Start automatisch importiert
+- Historie für Admins: Entfernte oder vergangene Termine werden pro Tag in einer eigenen Datenbanktabelle (`history_JJJJ_MM_TT`) mit Benutzer, Terminname und Uhrzeit archiviert
+- tägliche Termin-E-Mail um 07:00 Uhr (Europe/Berlin) mit iCal-Anhang an die in Authentik hinterlegte Mailadresse, sobald SMTP konfiguriert ist
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
 ## Schnellstart im Entwicklungsmodus
@@ -70,17 +71,40 @@ Mitglieder der Authentik-Gruppe `rollout-planner-admin` sehen neben „Termine e
 
 Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich aktivierten Entwicklungsmodus, damit der Ablauf lokal getestet werden kann. Im Produktionsmodus bleibt dieser Zugang vollständig deaktiviert.
 
+## Tägliche Termin-E-Mail
+
+Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag eine E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Die Termine stecken zusätzlich als iCal-Datei (`rollout-termine-<datum>.ics`) im Anhang, damit sie direkt in den Kalender übernommen werden können. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert.
+
+```dotenv
+SMTP_HOST=mail.intern.example
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<smtp-benutzer>
+SMTP_PASS=<smtp-passwort>
+SMTP_FROM=rollout-planer@intern.example
+```
+
 ## Datenspeicherung
 
-Die Datei `/app/data/rollout-state.json` liegt im benannten Volume `rollout-planer-data`. Gespeichert werden:
+Seit Version 3.0 speichert die Anwendung in einer PostgreSQL-Datenbank, die als eigener Dienst (`db`) in der Compose-Datei läuft und ihre Daten im benannten Volume `rollout-planer-db` hält. Der Zugang wird über `POSTGRES_USER`, `POSTGRES_PASSWORD` und `POSTGRES_DB` in der `.env` gesetzt; `docker compose` baut daraus die `DATABASE_URL` der Anwendung.
 
-- Termine für die fünf angezeigten Planungstage
-- Benutzer, die sich mindestens einmal erfolgreich angemeldet haben
-- Profilbilder im Unterordner `avatars` desselben Docker-Volumes
+Gespeichert werden:
 
-Vergangene Termine werden beim nächsten Zugriff oder Neustart entfernt. Die Anwendung ist für genau eine Container-Instanz ausgelegt; mehrere parallele App-Replikate dürfen nicht dieselbe JSON-Datei verwenden.
+- Termine für die fünf angezeigten Planungstage (Tabelle `appointments`)
+- Benutzer, die sich mindestens einmal erfolgreich angemeldet haben (Tabelle `users`)
+- Profilbilder im Unterordner `avatars` des Docker-Volumes `rollout-planer-data` (`/app/data`)
 
-Für eine Sicherung den Container kurz stoppen und das Docker-Volume `rollout-planer-data` mit der vorhandenen Server-Sicherungsstrategie sichern.
+### Historie pro Tag
+
+Vergangene, aus dem Planungsfenster fallende oder gelöschte Termine werden nicht mehr verworfen, sondern vor dem Entfernen archiviert: Für jeden Tag gibt es eine eigene Tabelle `history_JJJJ_MM_TT` (z. B. `history_2026_07_20`). Jede Zeile enthält Termin-ID, Uhrzeit (`start_time`/`end_time`), Terminname, den zuletzt zugewiesenen Benutzer (ID, Benutzername und Anzeigename als Momentaufnahme), Ersteller, Zeitpunkt der Archivierung und den Grund (`abgelaufen`, `planungsfenster`, `gelöscht`, `dev-bereinigung`). Darauf lässt sich später eine Admin-Historie aufsetzen.
+
+### Migration von Version 2
+
+Beim ersten Start mit leerer Datenbank importiert die Anwendung einen vorhandenen Stand aus `/app/data/rollout-state.json` (alle bisherigen `schemaVersion`-Stände 1–4) automatisch in PostgreSQL und benennt die Datei danach in `rollout-state.json.migrated` um. Die JSON-Datei wird nicht mehr beschrieben; das Volume `rollout-planer-data` wird weiterhin für Profilbilder und diese Sicherung benötigt.
+
+Die Anwendung ist für genau eine Container-Instanz ausgelegt; mehrere parallele App-Replikate dürfen nicht dieselbe Datenbank verwenden.
+
+Für eine Sicherung den Stack kurz stoppen und die Docker-Volumes `rollout-planer-db` und `rollout-planer-data` mit der vorhandenen Server-Sicherungsstrategie sichern.
 
 ## Befehle
 

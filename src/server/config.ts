@@ -7,11 +7,21 @@ export interface OidcConfig {
   scopes: string;
 }
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string | null;
+  pass: string | null;
+  from: string;
+}
+
 export interface AppConfig {
   appMode: "development" | "production";
   host: string;
   port: number;
   appBaseUrl: string;
+  databaseUrl: string;
   dataFile: string;
   staticDir: string;
   sessionSecret: string;
@@ -22,6 +32,7 @@ export interface AppConfig {
   devLoginName: string;
   devLoginUsername: string;
   oidc: OidcConfig | null;
+  smtp: SmtpConfig | null;
 }
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -65,6 +76,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     host: env.HOST ?? "0.0.0.0",
     port: parsePositiveNumber(env.PORT, 8080),
     appBaseUrl,
+    databaseUrl: env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/rollout",
     dataFile: path.resolve(env.DATA_FILE ?? "./data/rollout-state.json"),
     staticDir: path.resolve(env.STATIC_DIR ?? "./dist/public"),
     sessionSecret,
@@ -80,6 +92,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
           clientId: env.OIDC_CLIENT_ID!,
           clientSecret: env.OIDC_CLIENT_SECRET!,
           scopes: env.OIDC_SCOPES?.trim() || "openid profile email",
+        }
+      : null,
+    smtp: env.SMTP_HOST?.trim()
+      ? {
+          host: env.SMTP_HOST.trim(),
+          port: parsePositiveNumber(env.SMTP_PORT, 587),
+          secure: parseBoolean(env.SMTP_SECURE, false),
+          user: env.SMTP_USER?.trim() || null,
+          pass: env.SMTP_PASS ?? null,
+          from: env.SMTP_FROM?.trim() || "rollout-planer@localhost",
         }
       : null,
   };

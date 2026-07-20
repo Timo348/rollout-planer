@@ -9,6 +9,7 @@ function config(): AppConfig {
     host: "127.0.0.1",
     port: 8080,
     appBaseUrl: "http://localhost:8080",
+    databaseUrl: "postgres://postgres:postgres@localhost:5432/rollout",
     dataFile: "state.json",
     staticDir: "public",
     sessionSecret: "test-session-secret-with-at-least-thirty-two-characters",
@@ -19,6 +20,7 @@ function config(): AppConfig {
     devLoginName: "Entwickler",
     devLoginUsername: "dev",
     oidc: null,
+    smtp: null,
   };
 }
 

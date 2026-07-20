@@ -1,8 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile, rename } from "node:fs/promises";
 import { z } from "zod";
-import type { AppUser, Appointment, BootstrapResponse } from "../shared/contracts.js";
+import type {
+  Appointment,
+  AppointmentHistoryEntry,
+  AppUser,
+  AvatarMimeType,
+  BootstrapResponse,
+} from "../shared/contracts.js";
+import {
+  archiveAppointments,
+  openDatabase,
+  readHistory,
+  type ArchiveRecord,
+  type Database,
+} from "./db.js";
 import { FIXED_SLOTS, MAX_APPOINTMENTS_PER_SLOT } from "./constants.js";
 import { scheduleDates } from "./dates.js";
 
@@ -90,6 +102,11 @@ export interface AppointmentPatch {
   assigneeId?: string | null;
 }
 
+export interface DailyAssignment {
+  appointment: Appointment;
+  assignee: AppUser;
+}
+
 export class ConflictError extends Error {
   constructor(public readonly current: Appointment) {
     super("Der Termin wurde zwischenzeitlich geändert.");
@@ -125,53 +142,36 @@ export class StateStore {
   private state: StoredState = emptyState();
   private queue: Promise<void> = Promise.resolve();
   private initialized = false;
+  private db: Database | null = null;
 
   constructor(
-    private readonly filePath: string,
+    private readonly databaseUrl: string,
     private readonly now: () => Date = () => new Date(),
     private readonly allowDevUsers = false,
+    private readonly legacyDataFile?: string,
   ) {}
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    await mkdir(path.dirname(this.filePath), { recursive: true });
-    let migrated = false;
-
-    try {
-      const raw = await readFile(this.filePath, "utf8");
-      const parsed = stateSchema.safeParse(JSON.parse(raw));
-      if (!parsed.success) {
-        throw new StateValidationError(
-          `Die Zustandsdatei ist ungültig: ${parsed.error.issues[0]?.message ?? "unbekannter Fehler"}`,
-        );
-      }
-      if (parsed.data.schemaVersion !== 4) {
-        this.state = migrateState(parsed.data);
-        migrated = true;
-      } else {
-        this.state = parsed.data;
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        this.state = emptyState();
-        await this.persist();
-      } else if (error instanceof SyntaxError) {
-        throw new StateValidationError(
-          "Die Zustandsdatei enthält ungültiges JSON und wurde nicht überschrieben.",
-        );
-      } else {
-        throw error;
-      }
+    this.db = await openDatabase(this.databaseUrl);
+    const imported = await this.importLegacyState();
+    if (!imported) {
+      this.state = await this.readState();
     }
-
-    const changed = this.cleanupState();
-    if (migrated || changed) await this.persist();
+    await this.applyCleanup();
     this.initialized = true;
+  }
+
+  async close(): Promise<void> {
+    if (!this.db) return;
+    await this.db.end();
+    this.db = null;
+    this.initialized = false;
   }
 
   async upsertUser(user: AppUser): Promise<AppUser> {
     return this.enqueue(async () => {
-      this.cleanupState();
+      await this.applyCleanup();
       const index = this.state.users.findIndex((entry) => entry.id === user.id);
       if (index >= 0) {
         const existing = this.state.users[index]!;
@@ -207,7 +207,7 @@ export class StateStore {
 
   async deleteUser(id: string): Promise<AppUser> {
     return this.enqueue(async () => {
-      if (this.cleanupState()) await this.persist();
+      await this.applyCleanup();
       const index = this.state.users.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
 
@@ -233,8 +233,7 @@ export class StateStore {
 
   async getBootstrap(currentUserId: string): Promise<Omit<BootstrapResponse, "permissions">> {
     return this.enqueue(async () => {
-      const changed = this.cleanupState();
-      if (changed) await this.persist();
+      await this.applyCleanup();
       const currentUser = this.state.users.find((user) => user.id === currentUserId);
       if (!currentUser) throw new NotFoundError("Der angemeldete Benutzer ist nicht bekannt.");
       const dates = scheduleDates(this.now());
@@ -259,13 +258,33 @@ export class StateStore {
     });
   }
 
+  async getHistory(date: string): Promise<AppointmentHistoryEntry[]> {
+    return this.enqueue(async () => readHistory(this.database(), date));
+  }
+
+  async getDailyAssignments(date: string): Promise<DailyAssignment[]> {
+    return this.enqueue(async () => {
+      await this.applyCleanup();
+      const usersById = new Map(this.state.users.map((user) => [user.id, user]));
+      return this.state.appointments
+        .filter((appointment) => appointment.date === date && appointment.assigneeId !== null)
+        .flatMap((appointment) => {
+          const assignee = usersById.get(appointment.assigneeId!);
+          return assignee
+            ? [{ appointment: structuredClone(appointment), assignee: structuredClone(assignee) }]
+            : [];
+        })
+        .sort((a, b) => a.appointment.startTime.localeCompare(b.appointment.startTime));
+    });
+  }
+
   async createBatch(
     date: string,
     slots: CreateSlotInput[],
     actorId: string,
   ): Promise<Appointment[]> {
     return this.enqueue(async () => {
-      if (this.cleanupState()) await this.persist();
+      await this.applyCleanup();
       const dates = scheduleDates(this.now());
       if (!dates.planningDays.includes(date)) {
         throw new StateValidationError("Termine können nur für die fünf angezeigten Planungstage erstellt werden.");
@@ -302,7 +321,7 @@ export class StateStore {
     patch: AppointmentPatch,
   ): Promise<Appointment> {
     return this.enqueue(async () => {
-      if (this.cleanupState()) await this.persist();
+      await this.applyCleanup();
       const index = this.state.appointments.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError();
       const existing = this.state.appointments[index]!;
@@ -333,13 +352,13 @@ export class StateStore {
 
   async deleteAppointment(id: string, expectedVersion: number): Promise<void> {
     return this.enqueue(async () => {
-      if (this.cleanupState()) await this.persist();
+      await this.applyCleanup();
       const index = this.state.appointments.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError();
       const existing = this.state.appointments[index]!;
       if (existing.version !== expectedVersion) throw new ConflictError(structuredClone(existing));
       this.state.appointments.splice(index, 1);
-      await this.persist();
+      await this.persist([this.archiveRecord(existing, "gelöscht")]);
     });
   }
 
@@ -352,7 +371,30 @@ export class StateStore {
     return result;
   }
 
-  private cleanupState(): boolean {
+  private database(): Database {
+    if (!this.db) throw new Error("Der Datenspeicher wurde noch nicht initialisiert.");
+    return this.db;
+  }
+
+  private archiveRecord(
+    appointment: Appointment,
+    reason: string,
+    users: AppUser[] = this.state.users,
+  ): ArchiveRecord {
+    return {
+      appointment: structuredClone(appointment),
+      assignee: appointment.assigneeId
+        ? structuredClone(users.find((user) => user.id === appointment.assigneeId) ?? null)
+        : null,
+      reason,
+      archivedAt: this.now().toISOString(),
+    };
+  }
+
+  private cleanupState(): {
+    changed: boolean;
+    removed: Array<{ appointment: Appointment; reason: string }>;
+  } {
     const dates = scheduleDates(this.now());
     const allowedDates = new Set(dates.planningDays);
     const allowedUsers = this.allowDevUsers
@@ -360,18 +402,22 @@ export class StateStore {
       : this.state.users.filter((user) => user.source !== "dev");
     const allowedUserIds = new Set(allowedUsers.map((user) => user.id));
     let changed = allowedUsers.length !== this.state.users.length;
+    const removed: Array<{ appointment: Appointment; reason: string }> = [];
 
     const appointments: Appointment[] = [];
     for (const appointment of this.state.appointments) {
       if (!this.allowDevUsers && appointment.createdBy.startsWith("dev:")) {
+        removed.push({ appointment, reason: "dev-bereinigung" });
         changed = true;
         continue;
       }
       if (appointment.date < dates.today) {
+        removed.push({ appointment, reason: "abgelaufen" });
         changed = true;
         continue;
       }
       if (!allowedDates.has(appointment.date)) {
+        removed.push({ appointment, reason: "planungsfenster" });
         changed = true;
         continue;
       }
@@ -391,13 +437,150 @@ export class StateStore {
     if (changed) {
       this.state = { ...this.state, users: allowedUsers, appointments };
     }
-    return changed;
+    return { changed, removed };
   }
 
-  private async persist(): Promise<void> {
-    const temporaryPath = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
-    const contents = `${JSON.stringify(this.state, null, 2)}\n`;
-    await writeFile(temporaryPath, contents, { encoding: "utf8", mode: 0o600 });
-    await rename(temporaryPath, this.filePath);
+  private async applyCleanup(): Promise<void> {
+    const usersBefore = this.state.users;
+    const { changed, removed } = this.cleanupState();
+    if (changed) {
+      await this.persist(
+        removed.map(({ appointment, reason }) =>
+          this.archiveRecord(appointment, reason, usersBefore),
+        ),
+      );
+    }
+  }
+
+  private async readState(): Promise<StoredState> {
+    const db = this.database();
+    const userRows = await db.query("SELECT * FROM users");
+    const appointmentRows = await db.query("SELECT * FROM appointments");
+    const users: AppUser[] = userRows.rows.map((row) => ({
+      id: String(row.id),
+      username: String(row.username),
+      displayName: String(row.display_name),
+      ...(row.email != null ? { email: String(row.email) } : {}),
+      source: row.source === "dev" ? "dev" : "oidc",
+      lastSeenAt: String(row.last_seen_at),
+      ...(row.avatar_key != null
+        ? {
+            avatar: {
+              key: String(row.avatar_key),
+              mimeType: String(row.avatar_mime_type) as AvatarMimeType,
+              updatedAt: String(row.avatar_updated_at),
+            },
+          }
+        : {}),
+    }));
+    const appointments: Appointment[] = appointmentRows.rows.map((row) => ({
+      id: String(row.id),
+      date: String(row.date),
+      startTime: String(row.start_time),
+      endTime: String(row.end_time),
+      name: String(row.name),
+      assigneeId: row.assignee_id != null ? String(row.assignee_id) : null,
+      createdBy: String(row.created_by),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+      version: Number(row.version),
+    }));
+    return { schemaVersion: 4, users, appointments };
+  }
+
+  private async hasStoredData(): Promise<boolean> {
+    const result = await this.database().query(
+      "SELECT (SELECT COUNT(*) FROM users) AS users, (SELECT COUNT(*) FROM appointments) AS appointments",
+    );
+    return Number(result.rows[0]?.users ?? 0) + Number(result.rows[0]?.appointments ?? 0) > 0;
+  }
+
+  private async importLegacyState(): Promise<boolean> {
+    if (!this.legacyDataFile) return false;
+    if (await this.hasStoredData()) return false;
+
+    let raw: string;
+    try {
+      raw = await readFile(this.legacyDataFile, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
+    }
+
+    let json: unknown;
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      throw new StateValidationError(
+        "Die Zustandsdatei enthält ungültiges JSON und wurde nicht überschrieben.",
+      );
+    }
+    const parsed = stateSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new StateValidationError(
+        `Die Zustandsdatei ist ungültig: ${parsed.error.issues[0]?.message ?? "unbekannter Fehler"}`,
+      );
+    }
+
+    this.state = parsed.data.schemaVersion === 4 ? parsed.data : migrateState(parsed.data);
+    await this.persist();
+    await rename(this.legacyDataFile, `${this.legacyDataFile}.migrated`);
+    return true;
+  }
+
+  private async persist(archive: ArchiveRecord[] = []): Promise<void> {
+    const db = this.database();
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await archiveAppointments(client, archive);
+      await client.query("DELETE FROM appointments");
+      await client.query("DELETE FROM users");
+      for (const user of this.state.users) {
+        await client.query(
+          `INSERT INTO users (
+            id, username, display_name, email, source, last_seen_at,
+            avatar_key, avatar_mime_type, avatar_updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            user.id,
+            user.username,
+            user.displayName,
+            user.email ?? null,
+            user.source,
+            user.lastSeenAt,
+            user.avatar?.key ?? null,
+            user.avatar?.mimeType ?? null,
+            user.avatar?.updatedAt ?? null,
+          ],
+        );
+      }
+      for (const appointment of this.state.appointments) {
+        await client.query(
+          `INSERT INTO appointments (
+            id, date, start_time, end_time, name,
+            assignee_id, created_by, created_at, updated_at, version
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            appointment.id,
+            appointment.date,
+            appointment.startTime,
+            appointment.endTime,
+            appointment.name,
+            appointment.assigneeId,
+            appointment.createdBy,
+            appointment.createdAt,
+            appointment.updatedAt,
+            appointment.version,
+          ],
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
