@@ -21,7 +21,7 @@ import {
 import type { AppConfig } from "./config.js";
 import { MAX_APPOINTMENTS_PER_SLOT } from "./constants.js";
 import { createSmtpTransport } from "./mailer.js";
-import { startDailyAgendaScheduler } from "./scheduler.js";
+import { sendDailyAgendas, startDailyAgendaScheduler } from "./scheduler.js";
 import {
   ConflictError,
   NotFoundError,
@@ -110,10 +110,11 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
   app.addHook("onClose", async () => {
     await store.close();
   });
-  if (config.smtp) {
+  const agendaTransport = config.smtp ? createSmtpTransport(config.smtp) : null;
+  if (config.smtp && agendaTransport) {
     const stopAgendaScheduler = startDailyAgendaScheduler(
       store,
-      createSmtpTransport(config.smtp),
+      agendaTransport,
       config.smtp.from,
       app.log,
     );
@@ -310,6 +311,21 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
         }
       }
       return reply.code(204).send();
+    },
+  );
+
+  app.post(
+    "/api/agenda/send",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (_request, reply) => {
+      if (!config.smtp || !agendaTransport) {
+        return reply.code(503).send({
+          error: "smtp_unavailable",
+          message: "Der E-Mail-Versand ist nicht konfiguriert. Bitte SMTP_HOST setzen.",
+        });
+      }
+      const sent = await sendDailyAgendas(store, agendaTransport, config.smtp.from);
+      return { sent };
     },
   );
 

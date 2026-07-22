@@ -18,6 +18,7 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - PostgreSQL-Datenbank als eigener Compose-Dienst; bestehender JSON-Bestand wird beim ersten Start automatisch importiert
 - Historie für Admins: Entfernte oder vergangene Termine werden pro Tag in einer eigenen Datenbanktabelle (`history_JJJJ_MM_TT`) mit Benutzer, Terminname und Uhrzeit archiviert
 - tägliche Termin-E-Mail um 07:00 Uhr (Europe/Berlin) als Kalendereinladung (iCal mit Annehmen/Ablehnen) an die in Authentik hinterlegte Mailadresse, sobald SMTP konfiguriert ist
+- manueller Versand der Tagesagenda per Button „Terminmail heute senden“ neben der Benutzerverwaltung (nur für Admins mit der Authentik-Gruppe `rollout-planner-admin`)
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
 ## Schnellstart im Entwicklungsmodus
@@ -86,7 +87,7 @@ Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich
 
 ## Tägliche Termin-E-Mail
 
-Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag eine E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Die Termine stecken als Kalendereinladung (`rollout-termine-<datum>.ics`, iCal `METHOD:REQUEST`) im Anhang, sodass sie im Kalender-Client direkt angenommen oder abgelehnt werden können; als Organisator gilt die `SMTP_FROM`-Adresse. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert.
+Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag eine E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Die Termine stecken als Kalendereinladung (`rollout-termine-<datum>.ics`, iCal `METHOD:REQUEST`) im Anhang, sodass sie im Kalender-Client direkt angenommen oder abgelehnt werden können; als Organisator gilt die `SMTP_FROM`-Adresse. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert. Admins (Authentik-Gruppe `rollout-planner-admin`) können denselben Versand jederzeit manuell über den Button „Terminmail heute senden“ neben der Benutzerverwaltung auslösen (`POST /api/agenda/send`); ohne SMTP-Konfiguration antwortet der Endpunkt mit einer Fehlermeldung.
 
 ```dotenv
 SMTP_HOST=mail.intern.example

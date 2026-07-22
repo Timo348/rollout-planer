@@ -200,6 +200,49 @@ describe("Rollout API", () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it("versendet die Tagesagenda manuell nur mit Berechtigung und konfiguriertem SMTP", async () => {
+    const config = await testConfig(true);
+    const store = new StateStore(config.databaseUrl, () => new Date("2026-07-15T08:00:00.000Z"), true, config.dataFile);
+    await store.initialize();
+    const bob = oidcUser("oidc:bob", "bob");
+    await store.upsertUser(bob);
+    const app = await buildApp(config, store);
+    apps.push(app);
+
+    const bobCookie = await sessionCookie(config, {
+      user: bob,
+      permissions: { manageUsers: false },
+    });
+    const devLogin = await app.inject({
+      method: "POST",
+      url: "/api/auth/dev-login",
+      headers: { origin: "http://localhost:8080" },
+    });
+    const adminCookie = cookieFrom(devLogin);
+
+    const anonymous = await app.inject({
+      method: "POST",
+      url: "/api/agenda/send",
+      headers: { origin: "http://localhost:8080" },
+    });
+    expect(anonymous.statusCode).toBe(401);
+
+    const forbidden = await app.inject({
+      method: "POST",
+      url: "/api/agenda/send",
+      headers: { cookie: bobCookie, origin: "http://localhost:8080" },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const withoutSmtp = await app.inject({
+      method: "POST",
+      url: "/api/agenda/send",
+      headers: { cookie: adminCookie, origin: "http://localhost:8080" },
+    });
+    expect(withoutSmtp.statusCode).toBe(503);
+    expect(withoutSmtp.json<{ message: string }>().message).toContain("SMTP_HOST");
+  });
+
   it("schützt die Benutzerlöschung serverseitig und sperrt die Sitzung des entfernten Benutzers", async () => {
     const config = await testConfig(true);
     const store = new StateStore(config.databaseUrl, () => new Date("2026-07-15T08:00:00.000Z"), true, config.dataFile);

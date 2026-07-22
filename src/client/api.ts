@@ -90,4 +90,6 @@ export const api = {
     request<{ user: AppUser }>("/api/users/me/avatar", { method: "DELETE" }),
   deleteUser: (id: string) =>
     request<void>(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  sendAgendaMails: () =>
+    request<{ sent: number }>("/api/agenda/send", { method: "POST" }),
 };
