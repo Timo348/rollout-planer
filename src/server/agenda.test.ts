@@ -41,7 +41,7 @@ describe("Tagesagenda", () => {
     expect(ics.match(/ORGANIZER;CN="Rollout Planer":mailto:rollout-planer@example\.com/g)).toHaveLength(2);
     expect(
       ics.match(
-        /ATTENDEE;CN="Alice Beispiel";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:alice@example\.com/g,
+        /ATTENDEE;CN="Alice Beispiel";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:alice@example\.com/g,
       ),
     ).toHaveLength(2);
     expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);

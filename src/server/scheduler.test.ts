@@ -79,7 +79,7 @@ describe("Tägliche Termin-E-Mails", () => {
     expect(mail.ics).toContain("SUMMARY:Kunde A");
     expect(mail.ics).not.toContain("SUMMARY:Kunde B");
     expect(mail.ics).toContain("ORGANIZER;CN=\"Rollout Planer\":mailto:rollout-planer@example.com");
-    expect(mail.ics).toContain("ATTENDEE;CN=\"alice Beispiel\";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:alice@example.com");
+    expect(mail.ics).toContain("ATTENDEE;CN=\"alice Beispiel\";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:alice@example.com");
     expect(mail.icsFileName).toBe("rollout-termine-2026-07-15.ics");
   });
 

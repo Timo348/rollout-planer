@@ -56,7 +56,7 @@ export function buildIcs(
       `DTEND;TZID=Europe/Berlin:${compactLocal(appointment.date, appointment.endTime)}`,
       `SUMMARY:${escapeIcsText(appointment.name)}`,
       `ORGANIZER;CN=${quoteParam(organizer.name)}:mailto:${organizer.email}`,
-      `ATTENDEE;CN=${quoteParam(attendee.name)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${attendee.email}`,
+      `ATTENDEE;CN=${quoteParam(attendee.name)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:${attendee.email}`,
       "STATUS:CONFIRMED",
       "SEQUENCE:0",
       "END:VEVENT",
