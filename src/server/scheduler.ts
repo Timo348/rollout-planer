@@ -12,6 +12,7 @@ type SchedulerLog = Pick<FastifyBaseLogger, "info" | "error">;
 export async function sendDailyAgendas(
   store: StateStore,
   transport: MailTransport,
+  organizerEmail: string,
   now: Date = new Date(),
 ): Promise<number> {
   const today = dateInTimeZone(now);
@@ -35,7 +36,12 @@ export async function sendDailyAgendas(
       to: entry.email,
       subject: buildAgendaSubject(today),
       text: buildAgendaText(entry.displayName, today, entry.appointments),
-      ics: buildIcs(entry.appointments, now),
+      ics: buildIcs(
+        entry.appointments,
+        now,
+        { name: "Rollout Planer", email: organizerEmail },
+        { name: entry.displayName, email: entry.email },
+      ),
       icsFileName: `rollout-termine-${today}.ics`,
     });
     sent += 1;
@@ -62,6 +68,7 @@ export function msUntilNextRun(now: Date, hour: number = AGENDA_SEND_HOUR): numb
 export function startDailyAgendaScheduler(
   store: StateStore,
   transport: MailTransport,
+  organizerEmail: string,
   log: SchedulerLog,
 ): () => void {
   let stopped = false;
@@ -69,7 +76,7 @@ export function startDailyAgendaScheduler(
 
   const tick = async () => {
     try {
-      const sent = await sendDailyAgendas(store, transport);
+      const sent = await sendDailyAgendas(store, transport, organizerEmail);
       log.info({ sent }, "Tägliche Termin-E-Mails versendet.");
     } catch (error) {
       log.error({ err: error }, "Der Versand der täglichen Termin-E-Mails ist fehlgeschlagen.");

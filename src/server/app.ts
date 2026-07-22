@@ -114,6 +114,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     const stopAgendaScheduler = startDailyAgendaScheduler(
       store,
       createSmtpTransport(config.smtp),
+      config.smtp.from,
       app.log,
     );
     app.addHook("onClose", async () => {

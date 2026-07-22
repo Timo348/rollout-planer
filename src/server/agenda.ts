@@ -25,13 +25,27 @@ function escapeIcsText(value: string): string {
     .replace(/\r?\n/g, "\\n");
 }
 
-export function buildIcs(appointments: Appointment[], timestamp: Date): string {
+export interface AgendaParticipant {
+  name: string;
+  email: string;
+}
+
+function quoteParam(value: string): string {
+  return `"${value.replace(/"/g, "")}"`;
+}
+
+export function buildIcs(
+  appointments: Appointment[],
+  timestamp: Date,
+  organizer: AgendaParticipant,
+  attendee: AgendaParticipant,
+): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//rollout-planer//tagesagenda//DE",
     "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
+    "METHOD:REQUEST",
   ];
   for (const appointment of appointments) {
     lines.push(
@@ -41,7 +55,10 @@ export function buildIcs(appointments: Appointment[], timestamp: Date): string {
       `DTSTART;TZID=Europe/Berlin:${compactLocal(appointment.date, appointment.startTime)}`,
       `DTEND;TZID=Europe/Berlin:${compactLocal(appointment.date, appointment.endTime)}`,
       `SUMMARY:${escapeIcsText(appointment.name)}`,
+      `ORGANIZER;CN=${quoteParam(organizer.name)}:mailto:${organizer.email}`,
+      `ATTENDEE;CN=${quoteParam(attendee.name)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${attendee.email}`,
       "STATUS:CONFIRMED",
+      "SEQUENCE:0",
       "END:VEVENT",
     );
   }
@@ -68,7 +85,7 @@ export function buildAgendaText(
     "",
     ...lines,
     "",
-    "Die Termine liegen als Kalenderdatei (.ics) im Anhang.",
+    "Die Termine liegen als Kalendereinladung (.ics) im Anhang und können dort direkt angenommen werden.",
     "",
     "— Rollout Planer",
   ].join("\n");

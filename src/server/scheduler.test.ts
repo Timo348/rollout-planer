@@ -64,6 +64,7 @@ describe("Tägliche Termin-E-Mails", () => {
       async (mail) => {
         mails.push(mail);
       },
+      "rollout-planer@example.com",
       now(),
     );
 
@@ -74,8 +75,11 @@ describe("Tägliche Termin-E-Mails", () => {
     expect(mail.subject).toBe("Deine Rollout-Termine am 15.07.2026");
     expect(mail.text).toContain("Kunde A");
     expect(mail.text).not.toContain("Kunde B");
+    expect(mail.ics).toContain("METHOD:REQUEST");
     expect(mail.ics).toContain("SUMMARY:Kunde A");
     expect(mail.ics).not.toContain("SUMMARY:Kunde B");
+    expect(mail.ics).toContain("ORGANIZER;CN=\"Rollout Planer\":mailto:rollout-planer@example.com");
+    expect(mail.ics).toContain("ATTENDEE;CN=\"alice Beispiel\";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:alice@example.com");
     expect(mail.icsFileName).toBe("rollout-termine-2026-07-15.ics");
   });
 
@@ -88,7 +92,7 @@ describe("Tägliche Termin-E-Mails", () => {
     const mails: AgendaMail[] = [];
     const sent = await sendDailyAgendas(store, async (mail) => {
       mails.push(mail);
-    }, now());
+    }, "rollout-planer@example.com", now());
 
     expect(sent).toBe(0);
     expect(mails).toHaveLength(0);

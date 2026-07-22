@@ -25,7 +25,7 @@ export function createSmtpTransport(config: SmtpConfig): MailTransport {
       subject: mail.subject,
       text: mail.text,
       icalEvent: {
-        method: "PUBLISH",
+        method: "REQUEST",
         filename: mail.icsFileName,
         content: mail.ics,
       },

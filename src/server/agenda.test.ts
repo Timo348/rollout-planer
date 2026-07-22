@@ -19,15 +19,18 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
 }
 
 describe("Tagesagenda", () => {
-  it("baut eine iCal-Datei mit einem VEVENT pro Termin", () => {
+  it("baut eine iCal-Einladung mit einem VEVENT pro Termin", () => {
     const ics = buildIcs(
       [
         appointment(),
         appointment({ id: "appt-2", startTime: "10:00", endTime: "11:00", name: "Zweiter" }),
       ],
       new Date("2026-07-20T05:00:00.000Z"),
+      { name: "Rollout Planer", email: "rollout-planer@example.com" },
+      { name: "Alice Beispiel", email: "alice@example.com" },
     );
     expect(ics).toContain("BEGIN:VCALENDAR");
+    expect(ics).toContain("METHOD:REQUEST");
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2);
     expect(ics).toContain("DTSTART;TZID=Europe/Berlin:20260720T080000");
     expect(ics).toContain("DTEND;TZID=Europe/Berlin:20260720T090000");
@@ -35,6 +38,12 @@ describe("Tagesagenda", () => {
     expect(ics).toContain("SUMMARY:Kunde A\\, Filiale\\; Süd");
     expect(ics).toContain("UID:appt-1@rollout-planer");
     expect(ics).toContain("DTSTAMP:20260720T050000Z");
+    expect(ics.match(/ORGANIZER;CN="Rollout Planer":mailto:rollout-planer@example\.com/g)).toHaveLength(2);
+    expect(
+      ics.match(
+        /ATTENDEE;CN="Alice Beispiel";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:alice@example\.com/g,
+      ),
+    ).toHaveLength(2);
     expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);
   });
 

@@ -17,7 +17,7 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - Offline-Berechnung der gesetzlichen Feiertage in Baden-Württemberg
 - PostgreSQL-Datenbank als eigener Compose-Dienst; bestehender JSON-Bestand wird beim ersten Start automatisch importiert
 - Historie für Admins: Entfernte oder vergangene Termine werden pro Tag in einer eigenen Datenbanktabelle (`history_JJJJ_MM_TT`) mit Benutzer, Terminname und Uhrzeit archiviert
-- tägliche Termin-E-Mail um 07:00 Uhr (Europe/Berlin) mit iCal-Anhang an die in Authentik hinterlegte Mailadresse, sobald SMTP konfiguriert ist
+- tägliche Termin-E-Mail um 07:00 Uhr (Europe/Berlin) als Kalendereinladung (iCal mit Annehmen/Ablehnen) an die in Authentik hinterlegte Mailadresse, sobald SMTP konfiguriert ist
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
 ## Schnellstart im Entwicklungsmodus
@@ -86,7 +86,7 @@ Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich
 
 ## Tägliche Termin-E-Mail
 
-Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag eine E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Die Termine stecken zusätzlich als iCal-Datei (`rollout-termine-<datum>.ics`) im Anhang, damit sie direkt in den Kalender übernommen werden können. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert.
+Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag eine E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Die Termine stecken als Kalendereinladung (`rollout-termine-<datum>.ics`, iCal `METHOD:REQUEST`) im Anhang, sodass sie im Kalender-Client direkt angenommen oder abgelehnt werden können; als Organisator gilt die `SMTP_FROM`-Adresse. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert.
 
 ```dotenv
 SMTP_HOST=mail.intern.example
