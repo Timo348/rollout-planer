@@ -274,4 +274,21 @@ describe("StateStore", () => {
       reason: "gelöscht",
     });
   });
+
+  it("merkt sich die Mail-Einstellung auch über eine erneute Anmeldung hinweg", async () => {
+    const store = makeStore(() => new Date("2026-07-15T08:00:00.000Z"));
+    await store.initialize();
+    await store.upsertUser(user());
+
+    const updated = await store.setAgendaMailsEnabled("oidc:alice", false);
+    expect(updated.agendaMailsEnabled).toBe(false);
+
+    // Eine erneute OIDC-Anmeldung liefert den Benutzer ohne die Einstellung;
+    // der gespeicherte Wert muss erhalten bleiben.
+    await store.upsertUser(user());
+    expect((await store.getUser("oidc:alice")).agendaMailsEnabled).toBe(false);
+
+    const reenabled = await store.setAgendaMailsEnabled("oidc:alice", true);
+    expect(reenabled.agendaMailsEnabled).toBe(true);
+  });
 });

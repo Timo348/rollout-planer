@@ -30,6 +30,7 @@ const userSchema = z.object({
     mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
     updatedAt: z.string(),
   }).optional(),
+  agendaMailsEnabled: z.boolean().optional(),
 });
 
 const appointmentSchema = z.object({
@@ -175,7 +176,13 @@ export class StateStore {
       const index = this.state.users.findIndex((entry) => entry.id === user.id);
       if (index >= 0) {
         const existing = this.state.users[index]!;
-        this.state.users[index] = existing.avatar ? { ...user, avatar: existing.avatar } : user;
+        this.state.users[index] = {
+          ...user,
+          ...(existing.avatar ? { avatar: existing.avatar } : {}),
+          ...(existing.agendaMailsEnabled !== undefined
+            ? { agendaMailsEnabled: existing.agendaMailsEnabled }
+            : {}),
+        };
       }
       else this.state.users.push(user);
       await this.persist();
@@ -199,6 +206,17 @@ export class StateStore {
       const updated = avatar
         ? { ...existing, avatar }
         : Object.fromEntries(Object.entries(existing).filter(([key]) => key !== "avatar")) as AppUser;
+      this.state.users[index] = updated;
+      await this.persist();
+      return structuredClone(updated);
+    });
+  }
+
+  async setAgendaMailsEnabled(id: string, enabled: boolean): Promise<AppUser> {
+    return this.enqueue(async () => {
+      const index = this.state.users.findIndex((entry) => entry.id === id);
+      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      const updated = { ...this.state.users[index]!, agendaMailsEnabled: enabled };
       this.state.users[index] = updated;
       await this.persist();
       return structuredClone(updated);
@@ -472,6 +490,9 @@ export class StateStore {
             },
           }
         : {}),
+      ...(row.agenda_mails_enabled != null
+        ? { agendaMailsEnabled: Boolean(row.agenda_mails_enabled) }
+        : {}),
     }));
     const appointments: Appointment[] = appointmentRows.rows.map((row) => ({
       id: String(row.id),
@@ -540,8 +561,8 @@ export class StateStore {
         await client.query(
           `INSERT INTO users (
             id, username, display_name, email, source, last_seen_at,
-            avatar_key, avatar_mime_type, avatar_updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            avatar_key, avatar_mime_type, avatar_updated_at, agenda_mails_enabled
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             user.id,
             user.username,
@@ -552,6 +573,7 @@ export class StateStore {
             user.avatar?.key ?? null,
             user.avatar?.mimeType ?? null,
             user.avatar?.updatedAt ?? null,
+            user.agendaMailsEnabled ?? null,
           ],
         );
       }

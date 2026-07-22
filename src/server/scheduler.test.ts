@@ -98,6 +98,28 @@ describe("Tägliche Termin-E-Mails", () => {
     expect(mails).toHaveLength(0);
   });
 
+  it("überspringt Benutzer mit deaktivierter Termin-E-Mail", async () => {
+    const now = () => new Date("2026-07-15T05:00:00.000Z");
+    const store = makeStore(now);
+    await store.initialize();
+    await store.upsertUser(user("oidc:alice", "alice@example.com"));
+    await store.setAgendaMailsEnabled("oidc:alice", false);
+    const [appointment] = await store.createBatch(
+      "2026-07-15",
+      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
+      "oidc:alice",
+    );
+    await store.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });
+
+    const mails: AgendaMail[] = [];
+    const sent = await sendDailyAgendas(store, async (mail) => {
+      mails.push(mail);
+    }, "rollout-planer@example.com", now());
+
+    expect(sent).toBe(0);
+    expect(mails).toHaveLength(0);
+  });
+
   it("berechnet die Wartezeit bis zum nächsten 7-Uhr-Lauf in Berliner Zeit", () => {
     // 06:59 Berlin (MESZ, UTC+2)
     expect(msUntilNextRun(new Date("2026-07-15T04:59:00.000Z"))).toBe(60_000);

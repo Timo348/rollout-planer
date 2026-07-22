@@ -22,6 +22,7 @@ export async function sendDailyAgendas(
     { displayName: string; email: string | undefined; appointments: Appointment[] }
   >();
   for (const { appointment, assignee } of assignments) {
+    if (assignee.agendaMailsEnabled === false) continue;
     const entry =
       grouped.get(assignee.id) ??
       { displayName: assignee.displayName, email: assignee.email, appointments: [] };

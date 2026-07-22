@@ -15,6 +15,8 @@ export interface AppUser {
   source: UserSource;
   lastSeenAt: string;
   avatar?: UserAvatar;
+  /** false = keine tägliche Termin-E-Mail; ein fehlender Wert bedeutet aktiviert. */
+  agendaMailsEnabled?: boolean;
 }
 
 export interface Appointment {

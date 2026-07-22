@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
@@ -241,6 +241,61 @@ describe("Rollout API", () => {
     });
     expect(withoutSmtp.statusCode).toBe(503);
     expect(withoutSmtp.json<{ message: string }>().message).toContain("SMTP_HOST");
+  });
+
+  it("liefert archivierte Termine vergangener Tage und speichert die eigene Mail-Einstellung", async () => {
+    const config = await testConfig(true);
+    await writeFile(config.dataFile, JSON.stringify({
+      schemaVersion: 4,
+      users: [],
+      appointments: [{
+        id: "past-1",
+        date: "2026-07-10",
+        startTime: "08:00",
+        endTime: "09:00",
+        name: "Kunde Alt",
+        assigneeId: null,
+        createdBy: "oidc:archiv",
+        createdAt: "2026-07-09T08:00:00.000Z",
+        updatedAt: "2026-07-09T08:00:00.000Z",
+        version: 1,
+      }],
+    }), "utf8");
+    const store = new StateStore(config.databaseUrl, () => new Date("2026-07-15T08:00:00.000Z"), true, config.dataFile);
+    await store.initialize();
+    const app = await buildApp(config, store);
+    apps.push(app);
+
+    const anonymous = await app.inject({ method: "GET", url: "/api/history/2026-07-10" });
+    expect(anonymous.statusCode).toBe(401);
+
+    const devLogin = await app.inject({
+      method: "POST",
+      url: "/api/auth/dev-login",
+      headers: { origin: "http://localhost:8080" },
+    });
+    const cookie = cookieFrom(devLogin);
+
+    const invalid = await app.inject({ method: "GET", url: "/api/history/10-07-2026", headers: { cookie } });
+    expect(invalid.statusCode).toBe(400);
+
+    const history = await app.inject({ method: "GET", url: "/api/history/2026-07-10", headers: { cookie } });
+    expect(history.statusCode).toBe(200);
+    const { entries } = history.json<{ entries: Array<Record<string, unknown>> }>();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ name: "Kunde Alt", date: "2026-07-10", reason: "abgelaufen" });
+
+    const updated = await app.inject({
+      method: "PUT",
+      url: "/api/users/me/preferences",
+      headers: { cookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { agendaMailsEnabled: false },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json<{ user: AppUser }>().user.agendaMailsEnabled).toBe(false);
+
+    const bootstrap = await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie } });
+    expect(bootstrap.json<BootstrapResponse>().currentUser.agendaMailsEnabled).toBe(false);
   });
 
   it("schützt die Benutzerlöschung serverseitig und sperrt die Sitzung des entfernten Benutzers", async () => {

@@ -329,6 +329,14 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     },
   );
 
+  app.get("/api/history/:date", { preHandler: [authenticate] }, async (request) => {
+    const date = z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .parse((request.params as { date?: string }).date);
+    return { entries: await store.getHistory(date) };
+  });
+
   app.get("/api/users/:id/avatar", { preHandler: [authenticate] }, async (request, reply) => {
     const id = z.string().min(1).parse((request.params as { id?: string }).id);
     const user = await store.getUser(id);
@@ -373,6 +381,23 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
         await avatars.delete(key);
         throw error;
       }
+    },
+  );
+
+  const preferencesSchema = z.object({
+    agendaMailsEnabled: z.boolean(),
+  });
+
+  app.put(
+    "/api/users/me/preferences",
+    { preHandler: [authenticate, verifyOrigin] },
+    async (request) => {
+      const payload = preferencesSchema.parse(request.body);
+      const user = await store.setAgendaMailsEnabled(
+        request.currentPrincipal!.user.id,
+        payload.agendaMailsEnabled,
+      );
+      return { user };
     },
   );
 

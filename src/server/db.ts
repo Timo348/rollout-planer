@@ -32,6 +32,8 @@ export async function openDatabase(connectionString: string): Promise<Database> 
   `);
   // Bestand aus Version 3.0: alte Quellen-Einschränkung ohne 'local' entfernen.
   await pool.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_source_check");
+  // Bestand älterer Versionen: optionale Mail-Einstellung der Benutzer nachrüsten.
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS agenda_mails_enabled BOOLEAN");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS appointments (
       id TEXT PRIMARY KEY,

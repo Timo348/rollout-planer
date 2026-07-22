@@ -19,6 +19,8 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - Historie für Admins: Entfernte oder vergangene Termine werden pro Tag in einer eigenen Datenbanktabelle (`history_JJJJ_MM_TT`) mit Benutzer, Terminname und Uhrzeit archiviert
 - tägliche Termin-E-Mail um 07:00 Uhr (Europe/Berlin) als Kalendereinladung (iCal mit Annehmen/Ablehnen) an die in Authentik hinterlegte Mailadresse, sobald SMTP konfiguriert ist
 - manueller Versand der Tagesagenda per Button „Terminmail heute senden“ neben der Benutzerverwaltung (nur für Admins mit der Authentik-Gruppe `rollout-planner-admin`)
+- Rückblick auf vergangene Tage über die Navigation: archivierte Termine inklusive Zuweisung pro Tag einsehen
+- tägliche Termin-E-Mail pro Benutzer individuell abbestellbar (Umschalter im Profilmenü)
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
 ## Schnellstart im Entwicklungsmodus
@@ -87,7 +89,7 @@ Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich
 
 ## Tägliche Termin-E-Mail
 
-Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag eine E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Die Termine stecken als Kalendereinladung (`rollout-termine-<datum>.ics`, iCal `METHOD:REQUEST`) im Anhang, sodass sie im Kalender-Client direkt angenommen oder abgelehnt werden können; die Antwort bleibt dabei lokal im Kalender (`RSVP=FALSE`), es geht keine Antwort-E-Mail an den Organisator raus. Als Organisator gilt die `SMTP_FROM`-Adresse. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert. Admins (Authentik-Gruppe `rollout-planner-admin`) können denselben Versand jederzeit manuell über den Button „Terminmail heute senden“ neben der Benutzerverwaltung auslösen (`POST /api/agenda/send`); ohne SMTP-Konfiguration antwortet der Endpunkt mit einer Fehlermeldung.
+Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag eine E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Die Termine stecken als Kalendereinladung (`rollout-termine-<datum>.ics`, iCal `METHOD:REQUEST`) im Anhang, sodass sie im Kalender-Client direkt angenommen oder abgelehnt werden können; die Antwort bleibt dabei lokal im Kalender (`RSVP=FALSE`), es geht keine Antwort-E-Mail an den Organisator raus. Als Organisator gilt die `SMTP_FROM`-Adresse. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert. Jeder Benutzer kann den Empfang für sich im Profilmenü (Umschalter „Tägliche Termin-E-Mail“) deaktivieren und wieder aktivieren; die Einstellung bleibt über Anmeldungen hinweg erhalten. Admins (Authentik-Gruppe `rollout-planner-admin`) können denselben Versand jederzeit manuell über den Button „Terminmail heute senden“ neben der Benutzerverwaltung auslösen (`POST /api/agenda/send`); ohne SMTP-Konfiguration antwortet der Endpunkt mit einer Fehlermeldung.
 
 ```dotenv
 SMTP_HOST=mail.intern.example

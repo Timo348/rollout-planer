@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  AppointmentHistoryEntry,
   AppUser,
   Appointment,
   BootstrapResponse,
@@ -92,4 +93,11 @@ export const api = {
     request<void>(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" }),
   sendAgendaMails: () =>
     request<{ sent: number }>("/api/agenda/send", { method: "POST" }),
+  getHistory: (date: string) =>
+    request<{ entries: AppointmentHistoryEntry[] }>(`/api/history/${encodeURIComponent(date)}`),
+  updatePreferences: (agendaMailsEnabled: boolean) =>
+    request<{ user: AppUser }>("/api/users/me/preferences", {
+      method: "PUT",
+      body: JSON.stringify({ agendaMailsEnabled }),
+    }),
 };
