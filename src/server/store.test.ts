@@ -291,4 +291,42 @@ describe("StateStore", () => {
     const reenabled = await store.setAgendaMailsEnabled("oidc:alice", true);
     expect(reenabled.agendaMailsEnabled).toBe(true);
   });
+
+  it("zählt durchgeführte Termine pro Benutzer und wendet manuelle Korrekturen an", async () => {
+    const legacy = await temporaryLegacyFile({
+      schemaVersion: 4,
+      users: [user("oidc:alice"), user("oidc:bob")],
+      appointments: [
+        { id: "a1", date: "2026-07-10", startTime: "08:00", endTime: "09:00", name: "Eins", assigneeId: "oidc:alice", createdBy: "oidc:alice", createdAt: "2026-07-09T08:00:00.000Z", updatedAt: "2026-07-09T08:00:00.000Z", version: 1 },
+        { id: "a2", date: "2026-07-10", startTime: "09:00", endTime: "10:00", name: "Zwei", assigneeId: "oidc:alice", createdBy: "oidc:alice", createdAt: "2026-07-09T08:00:00.000Z", updatedAt: "2026-07-09T08:00:00.000Z", version: 1 },
+        { id: "a3", date: "2026-07-01", startTime: "08:00", endTime: "09:00", name: "Alt", assigneeId: "oidc:bob", createdBy: "oidc:bob", createdAt: "2026-06-30T08:00:00.000Z", updatedAt: "2026-06-30T08:00:00.000Z", version: 1 },
+        { id: "a4", date: "2026-07-10", startTime: "10:00", endTime: "11:00", name: "Frei", assigneeId: null, createdBy: "oidc:alice", createdAt: "2026-07-09T08:00:00.000Z", updatedAt: "2026-07-09T08:00:00.000Z", version: 1 },
+      ],
+    });
+    const store = makeStore(() => new Date("2026-07-15T08:00:00.000Z"), false, legacy);
+    await store.initialize();
+
+    // Gelöschte (also nicht durchgeführte) Termine fließen nicht in die Zählung ein.
+    const [deleted] = await store.createBatch(
+      "2026-07-15",
+      [{ startTime: "08:00", endTime: "09:00", names: ["Gelöscht"] }],
+      "oidc:alice",
+    );
+    await store.deleteAppointment(deleted!.id, 1);
+
+    const all = await store.getAssignmentStats(null, null);
+    expect(all.find((entry) => entry.userId === "oidc:alice")?.appointments).toBe(2);
+    expect(all.find((entry) => entry.userId === "oidc:alice")?.total).toBe(2);
+    expect(all.find((entry) => entry.userId === "oidc:bob")?.appointments).toBe(1);
+
+    const ranged = await store.getAssignmentStats("2026-07-05", "2026-07-15");
+    expect(ranged.find((entry) => entry.userId === "oidc:alice")?.appointments).toBe(2);
+    expect(ranged.find((entry) => entry.userId === "oidc:bob")?.appointments).toBe(0);
+
+    const adjusted = await store.adjustStatsAdjustment("oidc:alice", 3);
+    expect(adjusted.statsAdjustment).toBe(3);
+    await store.upsertUser(user("oidc:alice"));
+    const afterRelogin = await store.getAssignmentStats(null, null);
+    expect(afterRelogin.find((entry) => entry.userId === "oidc:alice")?.total).toBe(5);
+  });
 });

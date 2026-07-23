@@ -34,6 +34,8 @@ export async function openDatabase(connectionString: string): Promise<Database> 
   await pool.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_source_check");
   // Bestand älterer Versionen: optionale Mail-Einstellung der Benutzer nachrüsten.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS agenda_mails_enabled BOOLEAN");
+  // Bestand älterer Versionen: manuellen Statistik-Korrekturwert nachrüsten.
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS stats_adjustment INTEGER");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS appointments (
       id TEXT PRIMARY KEY,
@@ -119,6 +121,46 @@ export async function archiveAppointments(
       ],
     );
   }
+}
+
+export interface AssignmentCount {
+  count: number;
+  displayName: string | null;
+}
+
+/**
+ * Zählt tatsächlich durchgeführte Termine (Grund "abgelaufen") pro Benutzer
+ * aus den Tages-Archivtabellen. from/to sind einschließlich, null = unbegrenzt.
+ */
+export async function countAssignmentsByAssignee(
+  db: Queryable,
+  from: string | null,
+  to: string | null,
+): Promise<Map<string, AssignmentCount>> {
+  const tables = await db.query(
+    "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename ~ '^history_[0-9]{4}_[0-9]{2}_[0-9]{2}$'",
+  );
+  const totals = new Map<string, AssignmentCount>();
+  for (const row of tables.rows) {
+    const table = String(row.tablename);
+    const date = table.replace("history_", "").replaceAll("_", "-");
+    if (from && date < from) continue;
+    if (to && date > to) continue;
+    const result = await db.query(
+      `SELECT assignee_id, COUNT(*) AS count, MAX(assignee_display_name) AS display_name
+       FROM "${table}"
+       WHERE assignee_id IS NOT NULL AND reason = 'abgelaufen'
+       GROUP BY assignee_id`,
+    );
+    for (const entry of result.rows) {
+      const id = String(entry.assignee_id);
+      const current = totals.get(id) ?? { count: 0, displayName: null };
+      current.count += Number(entry.count);
+      current.displayName ??= entry.display_name != null ? String(entry.display_name) : null;
+      totals.set(id, current);
+    }
+  }
+  return totals;
 }
 
 export async function readHistory(

@@ -5,11 +5,13 @@ import type {
   Appointment,
   AppointmentHistoryEntry,
   AppUser,
+  AssignmentStatsEntry,
   AvatarMimeType,
   BootstrapResponse,
 } from "../shared/contracts.js";
 import {
   archiveAppointments,
+  countAssignmentsByAssignee,
   openDatabase,
   readHistory,
   type ArchiveRecord,
@@ -31,6 +33,7 @@ const userSchema = z.object({
     updatedAt: z.string(),
   }).optional(),
   agendaMailsEnabled: z.boolean().optional(),
+  statsAdjustment: z.number().int().optional(),
 });
 
 const appointmentSchema = z.object({
@@ -182,6 +185,9 @@ export class StateStore {
           ...(existing.agendaMailsEnabled !== undefined
             ? { agendaMailsEnabled: existing.agendaMailsEnabled }
             : {}),
+          ...(existing.statsAdjustment !== undefined
+            ? { statsAdjustment: existing.statsAdjustment }
+            : {}),
         };
       }
       else this.state.users.push(user);
@@ -220,6 +226,53 @@ export class StateStore {
       this.state.users[index] = updated;
       await this.persist();
       return structuredClone(updated);
+    });
+  }
+
+  async adjustStatsAdjustment(id: string, delta: number): Promise<AppUser> {
+    return this.enqueue(async () => {
+      const index = this.state.users.findIndex((entry) => entry.id === id);
+      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      const updated = {
+        ...this.state.users[index]!,
+        statsAdjustment: (this.state.users[index]!.statsAdjustment ?? 0) + delta,
+      };
+      this.state.users[index] = updated;
+      await this.persist();
+      return structuredClone(updated);
+    });
+  }
+
+  async getAssignmentStats(from: string | null, to: string | null): Promise<AssignmentStatsEntry[]> {
+    return this.enqueue(async () => {
+      const counts = await countAssignmentsByAssignee(this.database(), from, to);
+      const entries = new Map<string, AssignmentStatsEntry>();
+      for (const user of this.state.users) {
+        const appointments = counts.get(user.id)?.count ?? 0;
+        const adjustment = user.statsAdjustment ?? 0;
+        entries.set(user.id, {
+          userId: user.id,
+          displayName: user.displayName,
+          username: user.username,
+          appointments,
+          adjustment,
+          total: appointments + adjustment,
+        });
+      }
+      for (const [userId, info] of counts) {
+        if (entries.has(userId)) continue;
+        entries.set(userId, {
+          userId,
+          displayName: info.displayName ?? userId,
+          username: null,
+          appointments: info.count,
+          adjustment: 0,
+          total: info.count,
+        });
+      }
+      return [...entries.values()].sort(
+        (a, b) => b.total - a.total || a.displayName.localeCompare(b.displayName, "de"),
+      );
     });
   }
 
@@ -493,6 +546,9 @@ export class StateStore {
       ...(row.agenda_mails_enabled != null
         ? { agendaMailsEnabled: Boolean(row.agenda_mails_enabled) }
         : {}),
+      ...(row.stats_adjustment != null
+        ? { statsAdjustment: Number(row.stats_adjustment) }
+        : {}),
     }));
     const appointments: Appointment[] = appointmentRows.rows.map((row) => ({
       id: String(row.id),
@@ -561,8 +617,9 @@ export class StateStore {
         await client.query(
           `INSERT INTO users (
             id, username, display_name, email, source, last_seen_at,
-            avatar_key, avatar_mime_type, avatar_updated_at, agenda_mails_enabled
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            avatar_key, avatar_mime_type, avatar_updated_at, agenda_mails_enabled,
+            stats_adjustment
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           [
             user.id,
             user.username,
@@ -574,6 +631,7 @@ export class StateStore {
             user.avatar?.mimeType ?? null,
             user.avatar?.updatedAt ?? null,
             user.agendaMailsEnabled ?? null,
+            user.statsAdjustment ?? null,
           ],
         );
       }

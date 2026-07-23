@@ -3,6 +3,8 @@ import type {
   AppointmentHistoryEntry,
   AppUser,
   Appointment,
+  AssignmentStatsEntry,
+  AssignmentStatsPeriod,
   BootstrapResponse,
   SessionResponse,
 } from "../shared/contracts";
@@ -99,5 +101,12 @@ export const api = {
     request<{ user: AppUser }>("/api/users/me/preferences", {
       method: "PUT",
       body: JSON.stringify({ agendaMailsEnabled }),
+    }),
+  getAssignmentStats: (period: AssignmentStatsPeriod) =>
+    request<{ entries: AssignmentStatsEntry[] }>(`/api/stats/assignments?period=${period}`),
+  adjustAssignmentStats: (userId: string, delta: number) =>
+    request<{ user: AppUser }>(`/api/stats/assignments/${encodeURIComponent(userId)}/adjust`, {
+      method: "POST",
+      body: JSON.stringify({ delta }),
     }),
 };

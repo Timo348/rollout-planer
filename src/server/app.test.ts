@@ -298,6 +298,106 @@ describe("Rollout API", () => {
     expect(bootstrap.json<BootstrapResponse>().currentUser.agendaMailsEnabled).toBe(false);
   });
 
+  it("liefert die Terminstatistik nur für Admins und lässt manuelle Korrekturen zu", async () => {
+    const config = await testConfig(true);
+    await writeFile(config.dataFile, JSON.stringify({
+      schemaVersion: 4,
+      users: [{
+        id: "dev:dev",
+        username: "dev",
+        displayName: "Entwickler",
+        source: "dev",
+        lastSeenAt: "2026-07-09T08:00:00.000Z",
+      }],
+      appointments: [{
+        id: "past-1",
+        date: "2026-07-10",
+        startTime: "08:00",
+        endTime: "09:00",
+        name: "Kunde Alt",
+        assigneeId: "dev:dev",
+        createdBy: "dev:dev",
+        createdAt: "2026-07-09T08:00:00.000Z",
+        updatedAt: "2026-07-09T08:00:00.000Z",
+        version: 1,
+      }],
+    }), "utf8");
+    const store = new StateStore(config.databaseUrl, () => new Date("2026-07-15T08:00:00.000Z"), true, config.dataFile);
+    await store.initialize();
+    const bob = oidcUser("oidc:bob", "bob");
+    await store.upsertUser(bob);
+    const app = await buildApp(config, store);
+    apps.push(app);
+
+    const anonymous = await app.inject({ method: "GET", url: "/api/stats/assignments?period=all" });
+    expect(anonymous.statusCode).toBe(401);
+
+    const bobCookie = await sessionCookie(config, {
+      user: bob,
+      permissions: { manageUsers: false },
+    });
+    const forbidden = await app.inject({
+      method: "GET",
+      url: "/api/stats/assignments?period=all",
+      headers: { cookie: bobCookie },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const devLogin = await app.inject({
+      method: "POST",
+      url: "/api/auth/dev-login",
+      headers: { origin: "http://localhost:8080" },
+    });
+    const adminCookie = cookieFrom(devLogin);
+
+    const stats = await app.inject({
+      method: "GET",
+      url: "/api/stats/assignments?period=all",
+      headers: { cookie: adminCookie },
+    });
+    expect(stats.statusCode).toBe(200);
+    const { entries } = stats.json<{ entries: Array<Record<string, unknown>> }>();
+    expect(entries.find((entry) => entry.userId === "dev:dev")).toMatchObject({
+      appointments: 1,
+      adjustment: 0,
+      total: 1,
+    });
+
+    const adjust = await app.inject({
+      method: "POST",
+      url: "/api/stats/assignments/dev%3Adev/adjust",
+      headers: { cookie: adminCookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { delta: 2 },
+    });
+    expect(adjust.statusCode).toBe(200);
+    expect(adjust.json<{ user: AppUser }>().user.statsAdjustment).toBe(2);
+
+    const adjustedStats = await app.inject({
+      method: "GET",
+      url: "/api/stats/assignments?period=all",
+      headers: { cookie: adminCookie },
+    });
+    expect(
+      adjustedStats.json<{ entries: Array<Record<string, unknown>> }>().entries
+        .find((entry) => entry.userId === "dev:dev"),
+    ).toMatchObject({ appointments: 1, adjustment: 2, total: 3 });
+
+    const forbiddenAdjust = await app.inject({
+      method: "POST",
+      url: "/api/stats/assignments/dev%3Adev/adjust",
+      headers: { cookie: bobCookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { delta: 1 },
+    });
+    expect(forbiddenAdjust.statusCode).toBe(403);
+
+    const invalidPeriod = await app.inject({
+      method: "GET",
+      url: "/api/stats/assignments?period=year",
+      headers: { cookie: adminCookie },
+    });
+    expect(invalidPeriod.statusCode).toBe(400);
+  });
+
   it("schützt die Benutzerlöschung serverseitig und sperrt die Sitzung des entfernten Benutzers", async () => {
     const config = await testConfig(true);
     const store = new StateStore(config.databaseUrl, () => new Date("2026-07-15T08:00:00.000Z"), true, config.dataFile);

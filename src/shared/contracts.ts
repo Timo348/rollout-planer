@@ -17,7 +17,23 @@ export interface AppUser {
   avatar?: UserAvatar;
   /** false = keine tägliche Termin-E-Mail; ein fehlender Wert bedeutet aktiviert. */
   agendaMailsEnabled?: boolean;
+  /** Manueller Korrekturwert für die Terminstatistik (nur durch Admins änderbar). */
+  statsAdjustment?: number;
 }
+
+export interface AssignmentStatsEntry {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  /** Aus den Archivtabellen gezählte, tatsächlich durchgeführte Termine. */
+  appointments: number;
+  /** Manueller Korrekturwert. */
+  adjustment: number;
+  /** appointments + adjustment. */
+  total: number;
+}
+
+export type AssignmentStatsPeriod = "14d" | "month" | "all";
 
 export interface Appointment {
   id: string;

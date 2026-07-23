@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   Camera,
+  ChartColumn,
   Check,
   ChevronDown,
   CircleUserRound,
@@ -12,6 +13,7 @@ import {
   LogOut,
   MailPlus,
   Menu,
+  Minus,
   Moon,
   Pencil,
   Plus,
@@ -25,7 +27,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { AppUser, Appointment, AppointmentHistoryEntry, BootstrapResponse, FixedSlot } from "../shared/contracts";
+import type { AppUser, Appointment, AppointmentHistoryEntry, AssignmentStatsEntry, AssignmentStatsPeriod, BootstrapResponse, FixedSlot } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { ConfirmDialog, CreateDialog, EditDialog } from "./Dialogs";
 import { useTheme } from "./theme";
@@ -430,6 +432,119 @@ function HistoryDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+const STATS_PERIODS: Array<{ value: AssignmentStatsPeriod; label: string }> = [
+  { value: "14d", label: "Letzte 14 Tage" },
+  { value: "month", label: "Dieser Monat" },
+  { value: "all", label: "Gesamt" },
+];
+
+function StatsDialog({ onClose }: { onClose: () => void }) {
+  const [period, setPeriod] = useState<AssignmentStatsPeriod>("14d");
+  const [entries, setEntries] = useState<AssignmentStatsEntry[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    api.getAssignmentStats(period)
+      .then((result) => { if (!cancelled) setEntries(result.entries); })
+      .catch((caught) => {
+        if (cancelled) return;
+        setEntries(null);
+        setError(caught instanceof Error ? caught.message : "Die Statistik konnte nicht geladen werden.");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [period]);
+
+  const adjust = async (entry: AssignmentStatsEntry, delta: number) => {
+    setBusyIds((current) => new Set(current).add(entry.userId));
+    setError("");
+    try {
+      await api.adjustAssignmentStats(entry.userId, delta);
+      setEntries((current) =>
+        current
+          ? current.map((item) =>
+              item.userId === entry.userId
+                ? { ...item, adjustment: item.adjustment + delta, total: item.total + delta }
+                : item,
+            )
+          : current,
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Der Wert konnte nicht angepasst werden.");
+    } finally {
+      setBusyIds((current) => {
+        const next = new Set(current);
+        next.delete(entry.userId);
+        return next;
+      });
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="modal modal--user-management" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+        <header className="modal__header">
+          <div><p className="eyebrow">Auswertung</p><h2 id="stats-title">Statistik</h2></div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Dialog schließen"><X size={20} /></button>
+        </header>
+        <div className="modal__body modal__body--user-management">
+          <div className="stats__tabs" role="tablist" aria-label="Zeitraum auswählen">
+            {STATS_PERIODS.map((option) => (
+              <button
+                key={option.value}
+                role="tab"
+                aria-selected={period === option.value}
+                className={period === option.value ? "stats__tab is-active" : "stats__tab"}
+                type="button"
+                onClick={() => setPeriod(option.value)}
+              >{option.label}</button>
+            ))}
+          </div>
+          {error && <p className="history__error" role="alert">{error}</p>}
+          <div className="user-management__list">
+            {loading ? (
+              <div className="history__empty"><LoaderCircle className="spin" size={17} /> Wird geladen …</div>
+            ) : !entries || entries.length === 0 ? (
+              <div className="history__empty">Im gewählten Zeitraum gibt es noch keine abgeschlossenen Termine.</div>
+            ) : (
+              entries.map((entry) => {
+                const busy = busyIds.has(entry.userId);
+                return (
+                  <div className="user-management__row stats__row" key={entry.userId}>
+                    <div className="user-management__identity">
+                      <span className="user-management__name"><strong>{entry.displayName}</strong></span>
+                      <span>
+                        {entry.username ?? "Nicht mehr vorhanden"}
+                        {entry.adjustment !== 0 && ` · ${entry.appointments} gezählt ${entry.adjustment > 0 ? "+" : "−"}${Math.abs(entry.adjustment)} manuell`}
+                      </span>
+                    </div>
+                    <strong className="stats__count">{entry.total}</strong>
+                    {entry.username !== null && (
+                      <div className="stats__adjust">
+                        <button type="button" disabled={busy} onClick={() => void adjust(entry, -1)} aria-label={`Wert für ${entry.displayName} verringern`}><Minus size={14} /></button>
+                        <button type="button" disabled={busy} onClick={() => void adjust(entry, 1)} aria-label={`Wert für ${entry.displayName} erhöhen`}><Plus size={14} /></button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+        <footer className="modal__footer">
+          <span className="modal__summary">Gezählt werden durchgeführte Termine aus dem Tagesarchiv — die Werte aktualisieren sich automatisch mit der täglichen Archivierung.</span>
+          <button className="button button--ghost" type="button" onClick={onClose}>Schließen</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; onLoggedOut: () => void }) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [theme, toggleTheme] = useTheme();
@@ -440,6 +555,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
   const [createOpen, setCreateOpen] = useState(false);
   const [userManagementOpen, setUserManagementOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [agendaBusy, setAgendaBusy] = useState(false);
   const [preferencesBusy, setPreferencesBusy] = useState(false);
   const [createInitialSlotKey, setCreateInitialSlotKey] = useState<string | null>(null);
@@ -685,6 +801,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
           <span className="sidebar-nav__label">Arbeitsbereich</span>
           <button className="sidebar-nav__item is-active" type="button"><LayoutDashboard size={18} />Terminübersicht</button>
           <button className="sidebar-nav__item" type="button" onClick={() => { setHistoryOpen(true); setNavOpen(false); }}><History size={18} />Vergangene Tage</button>
+          {data.permissions.manageUsers && <button className="sidebar-nav__item" type="button" onClick={() => { setStatsOpen(true); setNavOpen(false); }}><ChartColumn size={18} />Statistik</button>}
         </nav>
         <section className="sidebar-planning" aria-label="Tag auswählen">
           <span className="sidebar-nav__label">Planungstage</span>
@@ -805,6 +922,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       }} />}
       {editing && <EditDialog appointment={editing} users={data.users} onClose={() => setEditing(null)} onSave={async (payload) => { await mutate(editing, () => api.updateAppointment(editing.id, payload), "Termin gespeichert."); setEditing(null); }} />}
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
+      {statsOpen && data.permissions.manageUsers && <StatsDialog onClose={() => setStatsOpen(false)} />}
       {confirm && <ConfirmDialog title={confirm.title} message={confirm.message} destructive={confirm.destructive} busy={confirmBusy} onCancel={() => setConfirm(null)} onConfirm={() => void runConfirmed()} />}
       {toast && <div className={`toast toast--${toast.tone}`} role="status">{toast.tone === "success" ? <Check size={17} /> : <X size={17} />}{toast.message}</div>}
     </div>

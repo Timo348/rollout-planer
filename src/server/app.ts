@@ -20,6 +20,7 @@ import {
 } from "./avatars.js";
 import type { AppConfig } from "./config.js";
 import { MAX_APPOINTMENTS_PER_SLOT } from "./constants.js";
+import { addDays, dateInTimeZone } from "./dates.js";
 import { createSmtpTransport } from "./mailer.js";
 import { sendDailyAgendas, startDailyAgendaScheduler } from "./scheduler.js";
 import {
@@ -326,6 +327,43 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
       }
       const sent = await sendDailyAgendas(store, agendaTransport, config.smtp.from);
       return { sent };
+    },
+  );
+
+  const statsPeriodSchema = z.enum(["14d", "month", "all"]);
+
+  app.get(
+    "/api/stats/assignments",
+    { preHandler: [authenticate, requireUserAdmin] },
+    async (request) => {
+      const period = statsPeriodSchema.parse(
+        (request.query as { period?: string }).period ?? "14d",
+      );
+      const today = dateInTimeZone(new Date());
+      const range =
+        period === "all"
+          ? { from: null, to: null }
+          : period === "month"
+            ? { from: `${today.slice(0, 7)}-01`, to: today }
+            : { from: addDays(today, -13), to: today };
+      return { entries: await store.getAssignmentStats(range.from, range.to) };
+    },
+  );
+
+  const statsAdjustSchema = z.object({
+    delta: z.number().int().min(-100).max(100).refine((value) => value !== 0, {
+      message: "Die Änderung darf nicht 0 sein.",
+    }),
+  });
+
+  app.post(
+    "/api/stats/assignments/:userId/adjust",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request) => {
+      const userId = z.string().min(1).parse((request.params as { userId?: string }).userId);
+      const { delta } = statsAdjustSchema.parse(request.body);
+      const user = await store.adjustStatsAdjustment(userId, delta);
+      return { user };
     },
   );
 
