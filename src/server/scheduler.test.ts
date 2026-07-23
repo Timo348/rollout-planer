@@ -38,13 +38,12 @@ function makeStore(now: () => Date): StateStore {
 }
 
 describe("Tägliche Termin-E-Mails", () => {
-  it("versendet pro Benutzer eine Mail mit iCal-Anhang an die in Authentik hinterlegte Adresse", async () => {
+  it("versendet pro Termin eine eigene Einladungs-Mail an die in Authentik hinterlegte Adresse", async () => {
     // 05:00 UTC = 07:00 Europe/Berlin (MESZ)
     const now = () => new Date("2026-07-15T05:00:00.000Z");
     const store = makeStore(now);
     await store.initialize();
     await store.upsertUser(user("oidc:alice", "alice@example.com"));
-    await store.upsertUser(user("oidc:bob"));
     const [first] = await store.createBatch(
       "2026-07-15",
       [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
@@ -56,7 +55,7 @@ describe("Tägliche Termin-E-Mails", () => {
       "oidc:alice",
     );
     await store.updateAppointment(first!.id, 1, { assigneeId: "oidc:alice" });
-    await store.updateAppointment(second!.id, 1, { assigneeId: "oidc:bob" });
+    await store.updateAppointment(second!.id, 1, { assigneeId: "oidc:alice" });
 
     const mails: AgendaMail[] = [];
     const sent = await sendDailyAgendas(
@@ -68,19 +67,23 @@ describe("Tägliche Termin-E-Mails", () => {
       now(),
     );
 
-    expect(sent).toBe(1);
-    expect(mails).toHaveLength(1);
-    const mail = mails[0]!;
-    expect(mail.to).toBe("alice@example.com");
-    expect(mail.subject).toBe("Deine Rollout-Termine am 15.07.2026");
-    expect(mail.text).toContain("Kunde A");
-    expect(mail.text).not.toContain("Kunde B");
-    expect(mail.ics).toContain("METHOD:REQUEST");
-    expect(mail.ics).toContain("SUMMARY:Kunde A");
-    expect(mail.ics).not.toContain("SUMMARY:Kunde B");
-    expect(mail.ics).toContain("ORGANIZER;CN=\"Rollout Planer\":mailto:rollout-planer@example.com");
-    expect(mail.ics).toContain("ATTENDEE;CN=\"alice Beispiel\";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:alice@example.com");
-    expect(mail.icsFileName).toBe("rollout-termine-2026-07-15.ics");
+    expect(sent).toBe(2);
+    expect(mails).toHaveLength(2);
+    const [firstMail, secondMail] = mails;
+    expect(firstMail!.to).toBe("alice@example.com");
+    expect(firstMail!.subject).toBe("Rollout-Termin am 15.07.2026, 08:00–09:00 Uhr: Kunde A");
+    expect(firstMail!.text).toContain("dein Termin am 15.07.2026:");
+    expect(firstMail!.ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(firstMail!.ics).toContain("SUMMARY:Kunde A");
+    expect(firstMail!.ics).not.toContain("SUMMARY:Kunde B");
+    expect(firstMail!.ics).toContain("METHOD:REQUEST");
+    expect(firstMail!.ics).toContain("ORGANIZER;CN=\"Rollout Planer\":mailto:rollout-planer@example.com");
+    expect(firstMail!.ics).toContain("ATTENDEE;CN=\"alice Beispiel\";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:alice@example.com");
+    expect(firstMail!.icsFileName).toBe("rollout-termin-2026-07-15-0800.ics");
+    expect(secondMail!.subject).toBe("Rollout-Termin am 15.07.2026, 10:00–11:00 Uhr: Kunde B");
+    expect(secondMail!.ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(secondMail!.ics).toContain("SUMMARY:Kunde B");
+    expect(secondMail!.icsFileName).toBe("rollout-termin-2026-07-15-1000.ics");
   });
 
   it("überspringt Tage ohne zugewiesene Termine", async () => {

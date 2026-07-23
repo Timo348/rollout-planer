@@ -66,8 +66,8 @@ export function buildIcs(
   return `${lines.join("\r\n")}\r\n`;
 }
 
-export function buildAgendaSubject(date: string): string {
-  return `Deine Rollout-Termine am ${formatGermanDate(date)}`;
+export function buildAppointmentSubject(date: string, appointment: Appointment): string {
+  return `Rollout-Termin am ${formatGermanDate(date)}, ${appointment.startTime}–${appointment.endTime} Uhr: ${appointment.name}`;
 }
 
 export function buildAgendaText(
@@ -81,7 +81,9 @@ export function buildAgendaText(
   return [
     `Hallo ${displayName},`,
     "",
-    `deine Termine am ${formatGermanDate(date)}:`,
+    appointments.length === 1
+      ? `dein Termin am ${formatGermanDate(date)}:`
+      : `deine Termine am ${formatGermanDate(date)}:`,
     "",
     ...lines,
     "",

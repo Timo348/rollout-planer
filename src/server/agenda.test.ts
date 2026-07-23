@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Appointment } from "../shared/contracts.js";
-import { buildAgendaSubject, buildAgendaText, buildIcs } from "./agenda.js";
+import { buildAgendaText, buildAppointmentSubject, buildIcs } from "./agenda.js";
 
 function appointment(overrides: Partial<Appointment> = {}): Appointment {
   return {
@@ -48,9 +48,12 @@ describe("Tagesagenda", () => {
   });
 
   it("formuliert Betreff und Text auf Deutsch", () => {
-    expect(buildAgendaSubject("2026-07-20")).toBe("Deine Rollout-Termine am 20.07.2026");
+    expect(buildAppointmentSubject("2026-07-20", appointment())).toBe(
+      "Rollout-Termin am 20.07.2026, 08:00–09:00 Uhr: Kunde A, Filiale; Süd",
+    );
     const text = buildAgendaText("Alice Beispiel", "2026-07-20", [appointment()]);
     expect(text).toContain("Hallo Alice Beispiel,");
+    expect(text).toContain("dein Termin am 20.07.2026:");
     expect(text).toContain("- 08:00–09:00 Uhr: Kunde A, Filiale; Süd");
     expect(text).toContain(".ics");
   });

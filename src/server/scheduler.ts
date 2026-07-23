@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { Appointment } from "../shared/contracts.js";
-import { buildAgendaSubject, buildAgendaText, buildIcs } from "./agenda.js";
+import { buildAgendaText, buildAppointmentSubject, buildIcs } from "./agenda.js";
 import { APP_TIME_ZONE, dateInTimeZone } from "./dates.js";
 import type { MailTransport } from "./mailer.js";
 import type { StateStore } from "./store.js";
@@ -33,19 +33,23 @@ export async function sendDailyAgendas(
   let sent = 0;
   for (const entry of grouped.values()) {
     if (!entry.email) continue;
-    await transport({
-      to: entry.email,
-      subject: buildAgendaSubject(today),
-      text: buildAgendaText(entry.displayName, today, entry.appointments),
-      ics: buildIcs(
-        entry.appointments,
-        now,
-        { name: "Rollout Planer", email: organizerEmail },
-        { name: entry.displayName, email: entry.email },
-      ),
-      icsFileName: `rollout-termine-${today}.ics`,
-    });
-    sent += 1;
+    // Eine Einladung pro Termin: Kalender-Clients verarbeiten bei
+    // METHOD:REQUEST nur den ersten VEVENT pro Nachricht zuverlässig.
+    for (const appointment of entry.appointments) {
+      await transport({
+        to: entry.email,
+        subject: buildAppointmentSubject(today, appointment),
+        text: buildAgendaText(entry.displayName, today, [appointment]),
+        ics: buildIcs(
+          [appointment],
+          now,
+          { name: "Rollout Planer", email: organizerEmail },
+          { name: entry.displayName, email: entry.email },
+        ),
+        icsFileName: `rollout-termin-${today}-${appointment.startTime.replace(":", "")}.ics`,
+      });
+      sent += 1;
+    }
   }
   return sent;
 }
