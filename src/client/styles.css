@@ -245,7 +245,11 @@ h1, h2, h3, p { margin-top: 0; }
 .time-row { min-height: 0; display: grid; grid-template-columns: 148px minmax(0, 1fr); overflow: hidden; border-bottom: 1px solid var(--line); }
 .time-row:last-child { border-bottom: 0; }
 .time-row__label { min-height: 0; padding: 10px 16px 10px 20px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; border-right: 1px solid var(--line); background: #fcfdfe; }
-.time-row__icon { width: 38px; height: 38px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--primary); background: var(--primary-soft); }
+.time-row__actions { margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+.time-row__icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--primary); background: var(--primary-soft); }
+.time-row__add { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #d8daf9; border-radius: 9px; color: var(--primary); background: white; transition: color 140ms ease, background 140ms ease, border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease; }
+.time-row__add:hover { color: white; border-color: var(--primary); background: var(--primary); box-shadow: 0 5px 12px rgba(91,99,235,.2); transform: translateY(-1px); }
+.time-row__add:active { transform: translateY(0); }
 .time-row__label strong { color: var(--ink-900); font-size: 13px; white-space: nowrap; }
 .time-row__label small { margin-top: 4px; color: var(--ink-400); font-size: 10px; }
 .appointment-grid { min-width: 0; min-height: 0; padding: 10px 12px; display: flex; gap: 10px; align-items: center; overflow-x: auto; overflow-y: hidden; background: #fff; scrollbar-width: thin; }
@@ -308,7 +312,9 @@ h1, h2, h3, p { margin-top: 0; }
 .schedule--four .schedule-heading { min-height: 58px; flex-basis: 58px; padding: 10px 20px; }
 .schedule--four .time-row { grid-template-columns: 142px minmax(0, 1fr); }
 .schedule--four .time-row__label { padding: 8px 15px 8px 19px; }
-.schedule--four .time-row__icon { width: 32px; height: 32px; margin-bottom: 7px; border-radius: 9px; }
+.schedule--four .time-row__actions { margin-bottom: 7px; gap: 6px; }
+.schedule--four .time-row__icon { width: 32px; height: 32px; border-radius: 9px; }
+.schedule--four .time-row__add { width: 28px; height: 28px; border-radius: 8px; }
 .schedule--four .time-row__label strong { font-size: 12px; }
 .schedule--four .time-row__label small { margin-top: 3px; font-size: 9px; }
 .schedule--four .appointment-grid { padding: 7px 10px; gap: 9px; }
@@ -326,7 +332,9 @@ h1, h2, h3, p { margin-top: 0; }
 .schedule--five .schedule-heading h2 { margin-bottom: 3px; font-size: 16px; }
 .schedule--five .time-row { grid-template-columns: 138px minmax(0, 1fr); }
 .schedule--five .time-row__label { padding: 6px 14px 6px 18px; }
-.schedule--five .time-row__icon { width: 28px; height: 28px; margin-bottom: 4px; border-radius: 8px; }
+.schedule--five .time-row__actions { margin-bottom: 4px; gap: 5px; }
+.schedule--five .time-row__icon { width: 28px; height: 28px; border-radius: 8px; }
+.schedule--five .time-row__add { width: 26px; height: 26px; border-radius: 7px; }
 .schedule--five .time-row__label strong { font-size: 11px; }
 .schedule--five .time-row__label small { margin-top: 2px; font-size: 8px; }
 .schedule--five .appointment-grid { padding: 5px 9px; gap: 8px; }
@@ -348,7 +356,9 @@ h1, h2, h3, p { margin-top: 0; }
 .schedule--six .legend { gap: 14px; font-size: 9px; }
 .schedule--six .time-row { grid-template-columns: 132px minmax(0, 1fr); }
 .schedule--six .time-row__label { padding: 4px 12px 4px 16px; }
-.schedule--six .time-row__icon { width: 24px; height: 24px; margin-bottom: 3px; border-radius: 7px; }
+.schedule--six .time-row__actions { margin-bottom: 3px; gap: 4px; }
+.schedule--six .time-row__icon { width: 24px; height: 24px; border-radius: 7px; }
+.schedule--six .time-row__add { width: 23px; height: 23px; border-radius: 6px; }
 .schedule--six .time-row__label strong { font-size: 10px; }
 .schedule--six .time-row__label small { margin-top: 2px; font-size: 7px; }
 .schedule--six .appointment-grid { padding: 3px 7px; gap: 7px; }
@@ -368,7 +378,9 @@ h1, h2, h3, p { margin-top: 0; }
 .schedule--dense .schedule-heading h2 { font-size: 15px; }
 .schedule--dense .time-row { grid-template-columns: 124px minmax(0, 1fr); }
 .schedule--dense .time-row__label { padding: 7px 12px 7px 16px; }
-.schedule--dense .time-row__icon { width: 28px; height: 28px; margin-bottom: 6px; border-radius: 8px; }
+.schedule--dense .time-row__actions { margin-bottom: 6px; gap: 5px; }
+.schedule--dense .time-row__icon { width: 28px; height: 28px; border-radius: 8px; }
+.schedule--dense .time-row__add { width: 26px; height: 26px; border-radius: 7px; }
 .schedule--dense .time-row__label strong { font-size: 10px; }
 .schedule--dense .time-row__label small { margin-top: 3px; font-size: 8px; }
 .schedule--dense .appointment-grid { padding: 6px 8px; gap: 7px; }

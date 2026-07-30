@@ -117,7 +117,7 @@ function NameInputs({
 
 export function CreateDialog({
   initialDate,
-  initialSlotKey,
+  initialSlot,
   dates,
   fixedSlots,
   maximum,
@@ -125,7 +125,7 @@ export function CreateDialog({
   onCreate,
 }: {
   initialDate: string;
-  initialSlotKey?: string | null;
+  initialSlot?: FixedSlot | null;
   dates: ScheduleDates;
   fixedSlots: FixedSlot[];
   maximum: number;
@@ -135,22 +135,30 @@ export function CreateDialog({
     slots: Array<{ startTime: string; endTime: string; names: string[] }>;
   }) => Promise<void>;
 }) {
+  const initialSlotKey = initialSlot ? slotKey(initialSlot) : null;
+  const initialSlotIsFixed = initialSlotKey
+    ? fixedSlots.some((slot) => slotKey(slot) === initialSlotKey)
+    : false;
   const [date, setDate] = useState(initialDate);
   const [selected, setSelected] = useState<Set<string>>(() =>
-    initialSlotKey && fixedSlots.some((slot) => slotKey(slot) === initialSlotKey)
+    initialSlotKey && initialSlotIsFixed
       ? new Set([initialSlotKey])
       : new Set(),
   );
   const [drafts, setDrafts] = useState<Record<string, SlotDraft>>(() =>
     Object.fromEntries(fixedSlots.map((slot) => [slotKey(slot), createDraft(slot)])),
   );
-  const [customEnabled, setCustomEnabled] = useState(false);
-  const [customDraft, setCustomDraft] = useState<SlotDraft>({
-    startTime: "",
-    endTime: "",
-    count: 1,
-    names: [""],
-  });
+  const [customEnabled, setCustomEnabled] = useState(Boolean(initialSlot && !initialSlotIsFixed));
+  const [customDraft, setCustomDraft] = useState<SlotDraft>(() =>
+    initialSlot && !initialSlotIsFixed
+      ? createDraft(initialSlot)
+      : {
+          startTime: "",
+          endTime: "",
+          count: 1,
+          names: [""],
+        },
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
