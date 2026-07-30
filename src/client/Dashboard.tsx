@@ -558,7 +558,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
   const [statsOpen, setStatsOpen] = useState(false);
   const [agendaBusy, setAgendaBusy] = useState(false);
   const [preferencesBusy, setPreferencesBusy] = useState(false);
-  const [createInitialSlotKey, setCreateInitialSlotKey] = useState<string | null>(null);
+  const [createInitialSlot, setCreateInitialSlot] = useState<FixedSlot | null>(null);
   const [editing, setEditing] = useState<Appointment | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
@@ -575,8 +575,8 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
     window.setTimeout(() => setToast(null), 3500);
   };
 
-  const openCreateDialog = (initialSlotKey: string | null = null) => {
-    setCreateInitialSlotKey(initialSlotKey);
+  const openCreateDialog = (initialSlot: FixedSlot | null = null) => {
+    setCreateInitialSlot(initialSlot);
     setCreateOpen(true);
   };
 
@@ -896,11 +896,26 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
               const isCustom = !data.fixedSlots.some((slot) => slotKey(slot) === slotKey(row));
               return (
                 <section className="time-row" key={slotKey(row)}>
-                  <div className="time-row__label"><span className="time-row__icon"><Clock3 size={18} /></span><strong>{formatTime(row.startTime, row.endTime)}</strong><small>{isCustom ? "Eigene Uhrzeit" : `${appointments.length} ${appointments.length === 1 ? "Termin" : "Termine"}`}</small></div>
+                  <div className="time-row__label">
+                    <div className="time-row__actions">
+                      <span className="time-row__icon"><Clock3 size={18} /></span>
+                      <button
+                        className="time-row__add"
+                        type="button"
+                        aria-label={`Termin für ${formatTime(row.startTime, row.endTime)} hinzufügen`}
+                        title="Termin hinzufügen"
+                        onClick={() => openCreateDialog(row)}
+                      >
+                        <Plus size={17} />
+                      </button>
+                    </div>
+                    <strong>{formatTime(row.startTime, row.endTime)}</strong>
+                    <small>{isCustom ? "Eigene Uhrzeit" : `${appointments.length} ${appointments.length === 1 ? "Termin" : "Termine"}`}</small>
+                  </div>
                   <div className={appointments.length ? "appointment-grid" : "appointment-grid appointment-grid--empty"}>
                     {appointments.length ? appointments.map((appointment) => (
                       <AppointmentCard key={appointment.id} appointment={appointment} users={data.users} currentUser={data.currentUser} busy={busyIds.has(appointment.id)} onAssign={assign} onEdit={setEditing} onDelete={remove} />
-                    )) : <button className="empty-slot" type="button" aria-label={`Termin für ${formatTime(row.startTime, row.endTime)} hinzufügen`} onClick={() => openCreateDialog(slotKey(row))}><Plus size={17} /><span><strong>Noch keine Termine</strong><small>Jetzt hinzufügen</small></span></button>}
+                    )) : <button className="empty-slot" type="button" aria-label={`Termin für ${formatTime(row.startTime, row.endTime)} hinzufügen`} onClick={() => openCreateDialog(row)}><Plus size={17} /><span><strong>Noch keine Termine</strong><small>Jetzt hinzufügen</small></span></button>}
                   </div>
                 </section>
               );
@@ -909,7 +924,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
         </section>
       </main>
 
-      {createOpen && <CreateDialog initialDate={selectedDate} initialSlotKey={createInitialSlotKey} dates={data.dates} fixedSlots={data.fixedSlots} maximum={data.limits.maxAppointmentsPerSlot} onClose={() => setCreateOpen(false)} onCreate={async (payload) => { await api.createAppointments(payload); await load(true); setCreateOpen(false); showToast("Termine wurden erstellt."); }} />}
+      {createOpen && <CreateDialog initialDate={selectedDate} initialSlot={createInitialSlot} dates={data.dates} fixedSlots={data.fixedSlots} maximum={data.limits.maxAppointmentsPerSlot} onClose={() => setCreateOpen(false)} onCreate={async (payload) => { await api.createAppointments(payload); await load(true); setCreateOpen(false); showToast("Termine wurden erstellt."); }} />}
       {userManagementOpen && data.permissions.manageUsers && <UserManagementDialog users={data.users} currentUser={data.currentUser} onClose={() => setUserManagementOpen(false)} onDelete={async (user) => {
         try {
           await api.deleteUser(user.id);
