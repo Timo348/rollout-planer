@@ -14,6 +14,7 @@ export interface AppUser {
   email?: string;
   source: UserSource;
   lastSeenAt: string;
+  isPreparer: boolean;
   avatar?: UserAvatar;
   /** false = keine tägliche Termin-E-Mail; ein fehlender Wert bedeutet aktiviert. */
   agendaMailsEnabled?: boolean;
@@ -42,6 +43,7 @@ export interface Appointment {
   endTime: string;
   name: string;
   assigneeId: string | null;
+  isPrepared: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

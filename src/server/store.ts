@@ -32,6 +32,7 @@ const userSchema = z.object({
     mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
     updatedAt: z.string(),
   }).optional(),
+  isPreparer: z.boolean().optional(),
   agendaMailsEnabled: z.boolean().optional(),
   statsAdjustment: z.number().int().optional(),
 });
@@ -47,6 +48,7 @@ const appointmentSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   version: z.number().int().positive(),
+  isPrepared: z.boolean().optional(),
 });
 
 const monthlyCountsSchema = z.record(
@@ -133,12 +135,19 @@ function migrateState(
   legacy:
     | z.infer<typeof legacyStateSchema>
     | z.infer<typeof provisionalStateSchema>
-    | z.infer<typeof recognitionStateSchema>,
+    | z.infer<typeof recognitionStateSchema>
+    | z.infer<typeof currentStateSchema>,
 ): StoredState {
   return {
     schemaVersion: 4,
-    users: legacy.users,
-    appointments: legacy.appointments,
+    users: legacy.users.map((user) => ({
+      ...user,
+      isPreparer: user.isPreparer ?? false,
+    })),
+    appointments: legacy.appointments.map((appointment) => ({
+      ...appointment,
+      isPrepared: appointment.isPrepared ?? false,
+    })),
   };
 }
 
@@ -188,6 +197,7 @@ export class StateStore {
           ...(existing.statsAdjustment !== undefined
             ? { statsAdjustment: existing.statsAdjustment }
             : {}),
+          isPreparer: existing.isPreparer,
         };
       }
       else this.state.users.push(user);
@@ -223,6 +233,17 @@ export class StateStore {
       const index = this.state.users.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
       const updated = { ...this.state.users[index]!, agendaMailsEnabled: enabled };
+      this.state.users[index] = updated;
+      await this.persist();
+      return structuredClone(updated);
+    });
+  }
+
+  async setUserPreparer(id: string, isPreparer: boolean): Promise<AppUser> {
+    return this.enqueue(async () => {
+      const index = this.state.users.findIndex((entry) => entry.id === id);
+      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      const updated = { ...this.state.users[index]!, isPreparer };
       this.state.users[index] = updated;
       await this.persist();
       return structuredClone(updated);
@@ -377,6 +398,7 @@ export class StateStore {
           createdAt: timestamp,
           updatedAt: timestamp,
           version: 1,
+          isPrepared: false,
         })),
       );
 
@@ -430,6 +452,31 @@ export class StateStore {
       if (existing.version !== expectedVersion) throw new ConflictError(structuredClone(existing));
       this.state.appointments.splice(index, 1);
       await this.persist([this.archiveRecord(existing, "gelöscht")]);
+    });
+  }
+
+  async setAppointmentPrepared(
+    id: string,
+    expectedVersion: number,
+    isPrepared: boolean,
+  ): Promise<Appointment> {
+    return this.enqueue(async () => {
+      await this.applyCleanup();
+      const index = this.state.appointments.findIndex((entry) => entry.id === id);
+      if (index < 0) throw new NotFoundError();
+      const existing = this.state.appointments[index]!;
+      if (existing.version !== expectedVersion) {
+        throw new ConflictError(structuredClone(existing));
+      }
+      const updated: Appointment = {
+        ...existing,
+        isPrepared,
+        updatedAt: this.now().toISOString(),
+        version: existing.version + 1,
+      };
+      this.state.appointments[index] = updated;
+      await this.persist();
+      return structuredClone(updated);
     });
   }
 
@@ -532,8 +579,9 @@ export class StateStore {
       username: String(row.username),
       displayName: String(row.display_name),
       ...(row.email != null ? { email: String(row.email) } : {}),
-      source: row.source === "dev" ? "dev" : "oidc",
+      source: row.source === "dev" ? "dev" : row.source === "local" ? "local" : "oidc",
       lastSeenAt: String(row.last_seen_at),
+      isPreparer: Boolean(row.is_preparer),
       ...(row.avatar_key != null
         ? {
             avatar: {
@@ -561,6 +609,7 @@ export class StateStore {
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
       version: Number(row.version),
+      isPrepared: Boolean(row.is_prepared),
     }));
     return { schemaVersion: 4, users, appointments };
   }
@@ -599,7 +648,7 @@ export class StateStore {
       );
     }
 
-    this.state = parsed.data.schemaVersion === 4 ? parsed.data : migrateState(parsed.data);
+    this.state = migrateState(parsed.data);
     await this.persist();
     await rename(this.legacyDataFile, `${this.legacyDataFile}.migrated`);
     return true;
@@ -618,8 +667,8 @@ export class StateStore {
           `INSERT INTO users (
             id, username, display_name, email, source, last_seen_at,
             avatar_key, avatar_mime_type, avatar_updated_at, agenda_mails_enabled,
-            stats_adjustment
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            stats_adjustment, is_preparer
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           [
             user.id,
             user.username,
@@ -632,6 +681,7 @@ export class StateStore {
             user.avatar?.updatedAt ?? null,
             user.agendaMailsEnabled ?? null,
             user.statsAdjustment ?? null,
+            user.isPreparer,
           ],
         );
       }
@@ -639,8 +689,8 @@ export class StateStore {
         await client.query(
           `INSERT INTO appointments (
             id, date, start_time, end_time, name,
-            assignee_id, created_by, created_at, updated_at, version
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            assignee_id, created_by, created_at, updated_at, version, is_prepared
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           [
             appointment.id,
             appointment.date,
@@ -652,6 +702,7 @@ export class StateStore {
             appointment.createdAt,
             appointment.updatedAt,
             appointment.version,
+            appointment.isPrepared,
           ],
         );
       }

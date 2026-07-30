@@ -98,12 +98,14 @@ interface ConfirmState {
   action: () => Promise<void>;
 }
 
-function AppointmentCard({
+export function AppointmentCard({
   appointment,
   users,
   currentUser,
   busy,
+  preparerMode,
   onAssign,
+  onPreparedChange,
   onEdit,
   onDelete,
 }: {
@@ -111,13 +113,20 @@ function AppointmentCard({
   users: AppUser[];
   currentUser: AppUser;
   busy: boolean;
+  preparerMode: boolean;
   onAssign: (appointment: Appointment, assigneeId: string | null) => void;
+  onPreparedChange: (appointment: Appointment, isPrepared: boolean) => void;
   onEdit: (appointment: Appointment) => void;
   onDelete: (appointment: Appointment) => void;
 }) {
   const assignee = users.find((user) => user.id === appointment.assigneeId);
   const mine = appointment.assigneeId === currentUser.id;
   const stateClass = mine ? "is-mine" : assignee ? "is-assigned" : "is-free";
+  const preparationClass = preparerMode
+    ? appointment.isPrepared
+      ? "is-prepared"
+      : "is-preparation-pending"
+    : "";
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -180,13 +189,28 @@ function AppointmentCard({
   };
 
   return (
-    <article className={`appointment-card ${stateClass} ${busy ? "is-busy" : ""}`}>
+    <article className={`appointment-card ${stateClass} ${preparationClass} ${busy ? "is-busy" : ""}`}>
       <div className="appointment-card__topline">
         <div className="appointment-card__status">
           <span className="status-dot" />
-          {mine ? "Mein Termin" : assignee ? "Zugewiesen" : "Noch frei"}
+          {preparerMode
+            ? appointment.isPrepared ? "Vorbereitet" : "Vorbereitung offen"
+            : mine ? "Mein Termin" : assignee ? "Zugewiesen" : "Noch frei"}
         </div>
         <div className="card-actions">
+          {preparerMode && (
+            <button
+              className={appointment.isPrepared ? "preparation-toggle is-active" : "preparation-toggle"}
+              type="button"
+              disabled={busy}
+              aria-pressed={appointment.isPrepared}
+              aria-label={`${appointment.name} ${appointment.isPrepared ? "als nicht vorbereitet markieren" : "als vorbereitet markieren"}`}
+              title={appointment.isPrepared ? "Vorbereitung zurücksetzen" : "Als vorbereitet markieren"}
+              onClick={() => onPreparedChange(appointment, !appointment.isPrepared)}
+            >
+              {busy ? <LoaderCircle className="spin" size={13} /> : appointment.isPrepared && <Check size={13} />}
+            </button>
+          )}
           <button className="icon-button icon-button--small" type="button" disabled={busy} onClick={() => onEdit(appointment)} aria-label={`${appointment.name} bearbeiten`} title="Bearbeiten"><Pencil size={14} /></button>
           <button className="icon-button icon-button--small icon-button--danger" type="button" disabled={busy} onClick={() => onDelete(appointment)} aria-label={`${appointment.name} löschen`} title="Löschen"><Trash2 size={14} /></button>
         </div>
@@ -260,20 +284,24 @@ function AppointmentCard({
   );
 }
 
-function UserManagementDialog({
+export function UserManagementDialog({
   users,
   currentUser,
   onClose,
   onDelete,
+  onPreparerChange,
 }: {
   users: AppUser[];
   currentUser: AppUser;
   onClose: () => void;
   onDelete: (user: AppUser) => Promise<void>;
+  onPreparerChange: (user: AppUser, isPreparer: boolean) => Promise<void>;
 }) {
   const [pendingUser, setPendingUser] = useState<AppUser | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [preparerBusyId, setPreparerBusyId] = useState<string | null>(null);
+  const [preparerError, setPreparerError] = useState("");
   const orderedUsers = [...users].sort((left, right) => {
     if (left.id === currentUser.id) return -1;
     if (right.id === currentUser.id) return 1;
@@ -299,18 +327,32 @@ function UserManagementDialog({
     }
   };
 
+  const changePreparer = async (user: AppUser, isPreparer: boolean) => {
+    setPreparerBusyId(user.id);
+    setPreparerError("");
+    try {
+      await onPreparerChange(user, isPreparer);
+    } catch (caught) {
+      setPreparerError(caught instanceof Error ? caught.message : "Vorbereiter-Einstellung konnte nicht gespeichert werden.");
+    } finally {
+      setPreparerBusyId(null);
+    }
+  };
+
+  const settingsBusy = deleteBusy || preparerBusyId !== null;
+
   return (
     <>
-      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !deleteBusy && onClose()}>
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !settingsBusy && onClose()}>
         <section className="modal modal--user-management" role="dialog" aria-modal="true" aria-labelledby="user-management-title">
           <header className="modal__header">
             <div><p className="eyebrow">Administration</p><h2 id="user-management-title">Benutzerverwaltung</h2></div>
-            <button className="icon-button" type="button" disabled={deleteBusy} onClick={onClose} aria-label="Dialog schließen"><X size={20} /></button>
+            <button className="icon-button" type="button" disabled={settingsBusy} onClick={onClose} aria-label="Dialog schließen"><X size={20} /></button>
           </header>
           <div className="modal__body modal__body--user-management">
             <div className="user-management__intro">
               <div><strong>Lokale Benutzer</strong><small>{users.length} {users.length === 1 ? "Eintrag" : "Einträge"}</small></div>
-              <p>Hier entfernst du nur Daten aus dem Rollout Planer. Authentik-Konten bleiben bestehen.</p>
+              <p>Vorbereiter können alle Termine prüfen und als vorbereitet markieren. Authentik-Konten bleiben unverändert.</p>
             </div>
             <div className="user-management__list">
               {orderedUsers.map((user) => {
@@ -322,21 +364,33 @@ function UserManagementDialog({
                       <span className="user-management__name"><strong>{user.displayName}</strong>{isCurrentUser && <small>Du</small>}</span>
                       <span>{user.username}</span>
                     </div>
-                    {isCurrentUser ? (
-                      <span className="user-management__self">Aktuell angemeldet</span>
-                    ) : (
-                      <button className="user-management__delete" type="button" disabled={deleteBusy} onClick={() => askDelete(user)} aria-label={`${user.displayName} löschen`}>
-                        <Trash2 size={15} />Löschen
-                      </button>
-                    )}
+                    <div className="user-management__actions">
+                      <label className={user.isPreparer ? "user-management__preparer is-active" : "user-management__preparer"}>
+                        <input
+                          type="checkbox"
+                          checked={user.isPreparer}
+                          disabled={settingsBusy}
+                          onChange={(event) => void changePreparer(user, event.target.checked)}
+                        />
+                        <span>Vorbereiter</span>
+                      </label>
+                      {isCurrentUser ? (
+                        <span className="user-management__self">Aktuell angemeldet</span>
+                      ) : (
+                        <button className="user-management__delete" type="button" disabled={settingsBusy} onClick={() => askDelete(user)} aria-label={`${user.displayName} löschen`}>
+                          <Trash2 size={15} />Löschen
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
+            {preparerError && <div className="alert alert--error user-management__error" role="alert">{preparerError}</div>}
           </div>
           <footer className="modal__footer">
             <span className="modal__summary">Das eigene Profil kann nicht gelöscht werden.</span>
-            <button className="button button--ghost" type="button" disabled={deleteBusy} onClick={onClose}>Schließen</button>
+            <button className="button button--ghost" type="button" disabled={settingsBusy} onClick={onClose}>Schließen</button>
           </footer>
         </section>
       </div>
@@ -719,6 +773,14 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
     }
   };
 
+  const setPrepared = (appointment: Appointment, isPrepared: boolean) => {
+    void mutate(
+      appointment,
+      () => api.setAppointmentPrepared(appointment.id, appointment.version, isPrepared),
+      isPrepared ? "Termin als vorbereitet markiert." : "Vorbereitung zurückgesetzt.",
+    ).catch(() => undefined);
+  };
+
   const remove = (appointment: Appointment) => setConfirm({
     title: "Termin löschen?",
     message: `„${appointment.name}“ wird endgültig aus der aktuellen Planung entfernt.`,
@@ -889,7 +951,14 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
           }
           aria-label={`Termine für ${formatDateShort(selectedDate)}`}
         >
-          <div className="schedule-heading"><div><h2>{formatDateLong(selectedDate)}</h2><span>{selectedAppointments.length === 0 ? "Noch keine Termine angelegt" : `${selectedAppointments.length} ${selectedAppointments.length === 1 ? "Termin" : "Termine"} geplant`}</span></div><div className="legend"><span><i className="legend-dot legend-dot--free" />Frei</span><span><i className="legend-dot legend-dot--mine" />Mein Termin</span><span><i className="legend-dot legend-dot--assigned" />Zugewiesen</span></div></div>
+          <div className="schedule-heading">
+            <div><h2>{formatDateLong(selectedDate)}</h2><span>{selectedAppointments.length === 0 ? "Noch keine Termine angelegt" : `${selectedAppointments.length} ${selectedAppointments.length === 1 ? "Termin" : "Termine"} geplant`}</span></div>
+            {data.currentUser.isPreparer ? (
+              <div className="legend"><span><i className="legend-dot legend-dot--pending" />Vorbereitung offen</span><span><i className="legend-dot legend-dot--prepared" />Vorbereitet</span></div>
+            ) : (
+              <div className="legend"><span><i className="legend-dot legend-dot--free" />Frei</span><span><i className="legend-dot legend-dot--mine" />Mein Termin</span><span><i className="legend-dot legend-dot--assigned" />Zugewiesen</span></div>
+            )}
+          </div>
           <div className="schedule-rows" style={{ "--row-count": rows.length } as CSSProperties}>
             {rows.map((row) => {
               const appointments = selectedAppointments.filter((appointment) => appointment.startTime === row.startTime && appointment.endTime === row.endTime);
@@ -914,7 +983,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
                   </div>
                   <div className={appointments.length ? "appointment-grid" : "appointment-grid appointment-grid--empty"}>
                     {appointments.length ? appointments.map((appointment) => (
-                      <AppointmentCard key={appointment.id} appointment={appointment} users={data.users} currentUser={data.currentUser} busy={busyIds.has(appointment.id)} onAssign={assign} onEdit={setEditing} onDelete={remove} />
+                      <AppointmentCard key={appointment.id} appointment={appointment} users={data.users} currentUser={data.currentUser} busy={busyIds.has(appointment.id)} preparerMode={data.currentUser.isPreparer} onAssign={assign} onPreparedChange={setPrepared} onEdit={setEditing} onDelete={remove} />
                     )) : <button className="empty-slot" type="button" aria-label={`Termin für ${formatTime(row.startTime, row.endTime)} hinzufügen`} onClick={() => openCreateDialog(row)}><Plus size={17} /><span><strong>Noch keine Termine</strong><small>Jetzt hinzufügen</small></span></button>}
                   </div>
                 </section>
@@ -925,7 +994,16 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       </main>
 
       {createOpen && <CreateDialog initialDate={selectedDate} initialSlot={createInitialSlot} dates={data.dates} fixedSlots={data.fixedSlots} maximum={data.limits.maxAppointmentsPerSlot} onClose={() => setCreateOpen(false)} onCreate={async (payload) => { await api.createAppointments(payload); await load(true); setCreateOpen(false); showToast("Termine wurden erstellt."); }} />}
-      {userManagementOpen && data.permissions.manageUsers && <UserManagementDialog users={data.users} currentUser={data.currentUser} onClose={() => setUserManagementOpen(false)} onDelete={async (user) => {
+      {userManagementOpen && data.permissions.manageUsers && <UserManagementDialog users={data.users} currentUser={data.currentUser} onClose={() => setUserManagementOpen(false)} onPreparerChange={async (user, isPreparer) => {
+        try {
+          await api.setUserPreparer(user.id, isPreparer);
+          await load(true);
+          showToast(`${user.displayName} ist ${isPreparer ? "jetzt Vorbereiter." : "kein Vorbereiter mehr."}`);
+        } catch (caught) {
+          if (caught instanceof ApiError && caught.status === 401) onLoggedOut();
+          throw caught;
+        }
+      }} onDelete={async (user) => {
         try {
           await api.deleteUser(user.id);
           await load(true);

@@ -9,6 +9,8 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - lokaler Administrator-Zugang mit Benutzername und Passwort (Standard `admin`/`admin`, per Umgebungsvariable änderbar)
 - alle angemeldeten Benutzer dürfen Termine planen und verwalten
 - lokale Benutzerverwaltung für Mitglieder der Authentik-Gruppe `rollout-planner-admin`
+- administrativ aktivierbare Vorbereiter-Rolle mit eigener Terminprüfung
+- offene Vorbereitungen werden Vorbereitern rot angezeigt und per Haken als vorbereitet markiert
 - eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 20 MB) mit Initialen als Fallback
 - fünf Planungstage ab heute; Wochenenden und Feiertage werden bei den Folgetagen übersprungen
 - feste Uhrzeiten 08–09, 09–10, 10–11, 11–12, 12–13 und 13–14 Uhr

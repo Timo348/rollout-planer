@@ -28,6 +28,7 @@ function user(id: string, email?: string): AppUser {
     ...(email ? { email } : {}),
     source: "oidc",
     lastSeenAt: "2026-07-15T08:00:00.000Z",
+    isPreparer: false,
   };
 }
 

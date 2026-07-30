@@ -41,6 +41,7 @@ function user(id = "oidc:alice"): AppUser {
     displayName: "Alice Beispiel",
     source: id.startsWith("dev:") ? "dev" : "oidc",
     lastSeenAt: "2026-07-15T08:00:00.000Z",
+    isPreparer: false,
   };
 }
 
@@ -61,6 +62,36 @@ describe("StateStore", () => {
     await second.initialize();
     const snapshot = await second.getBootstrap("oidc:alice");
     expect(snapshot.appointments.map((entry) => entry.name)).toEqual(["Kunde A", "Kunde B"]);
+  });
+
+  it("persistiert Vorbereiter-Rolle und Vorbereitungsstatus mit Versionsprüfung", async () => {
+    const now = () => new Date("2026-07-15T08:00:00.000Z");
+    const first = makeStore(now);
+    await first.initialize();
+    await first.upsertUser(user());
+
+    const preparer = await first.setUserPreparer("oidc:alice", true);
+    expect(preparer.isPreparer).toBe(true);
+    expect((await first.upsertUser(user())).isPreparer).toBe(true);
+
+    const [created] = await first.createBatch(
+      "2026-07-15",
+      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
+      "oidc:alice",
+    );
+    expect(created!.isPrepared).toBe(false);
+
+    const prepared = await first.setAppointmentPrepared(created!.id, 1, true);
+    expect(prepared).toMatchObject({ isPrepared: true, version: 2 });
+    await expect(first.setAppointmentPrepared(created!.id, 1, false)).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+
+    const second = makeStore(now);
+    await second.initialize();
+    const snapshot = await second.getBootstrap("oidc:alice");
+    expect(snapshot.currentUser.isPreparer).toBe(true);
+    expect(snapshot.appointments[0]).toMatchObject({ isPrepared: true, version: 2 });
   });
 
   it("importiert einen bestehenden JSON-Bestand beim ersten Start", async () => {
@@ -86,6 +117,8 @@ describe("StateStore", () => {
     await store.initialize();
     const snapshot = await store.getBootstrap("oidc:alice");
     expect(snapshot.appointments).toHaveLength(1);
+    expect(snapshot.currentUser.isPreparer).toBe(false);
+    expect(snapshot.appointments[0]!.isPrepared).toBe(false);
 
     await expect(readFile(legacy, "utf8")).rejects.toThrow();
     const backup = JSON.parse(await readFile(`${legacy}.migrated`, "utf8")) as Record<string, unknown>;

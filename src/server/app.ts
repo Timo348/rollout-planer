@@ -78,6 +78,11 @@ const updateSchema = z
   );
 
 const deleteSchema = z.object({ version: z.coerce.number().int().positive() });
+const preparerSchema = z.object({ isPreparer: z.boolean() });
+const preparedSchema = z.object({
+  version: z.number().int().positive(),
+  isPrepared: z.boolean(),
+});
 
 function cookieOptions(config: AppConfig) {
   return {
@@ -159,8 +164,8 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     const principal = await auth.readSession(request.cookies[SESSION_COOKIE]);
     if (!principal) return null;
     try {
-      await store.getUser(principal.user.id);
-      return principal;
+      const user = await store.getUser(principal.user.id);
+      return { ...principal, user };
     } catch (error) {
       if (error instanceof NotFoundError) return null;
       throw error;
@@ -187,6 +192,15 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
       return reply.code(403).send({
         error: "forbidden",
         message: "Für die Benutzerverwaltung fehlt die Berechtigung.",
+      });
+    }
+  };
+
+  const requirePreparer = async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!request.currentPrincipal?.user.isPreparer) {
+      return reply.code(403).send({
+        error: "forbidden",
+        message: "Für diese Aktion wird die Vorbereiter-Rolle benötigt.",
       });
     }
   };
@@ -312,6 +326,16 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
         }
       }
       return reply.code(204).send();
+    },
+  );
+
+  app.patch(
+    "/api/users/:id/preparer",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request) => {
+      const id = z.string().min(1).parse((request.params as { id?: string }).id);
+      const { isPreparer } = preparerSchema.parse(request.body);
+      return { user: await store.setUserPreparer(id, isPreparer) };
     },
   );
 
@@ -481,6 +505,16 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
         endTime: payload.endTime,
         assigneeId: payload.assigneeId,
       });
+    },
+  );
+
+  app.patch(
+    "/api/appointments/:id/prepared",
+    { preHandler: [authenticate, verifyOrigin, requirePreparer] },
+    async (request) => {
+      const id = z.string().min(1).parse((request.params as { id?: string }).id);
+      const payload = preparedSchema.parse(request.body);
+      return store.setAppointmentPrepared(id, payload.version, payload.isPrepared);
     },
   );
 

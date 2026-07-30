@@ -103,6 +103,7 @@ export class AuthService {
           email: requiredString(payload, "email"),
           source,
           lastSeenAt: new Date().toISOString(),
+          isPreparer: false,
         },
         permissions: {
           manageUsers:
@@ -125,6 +126,7 @@ export class AuthService {
         displayName: this.config.devLoginName,
         source: "dev",
         lastSeenAt: new Date().toISOString(),
+        isPreparer: false,
       },
       permissions: { manageUsers: true },
     };
@@ -138,6 +140,7 @@ export class AuthService {
         displayName: "Administrator",
         source: "local",
         lastSeenAt: new Date().toISOString(),
+        isPreparer: false,
       },
       permissions: { manageUsers: true },
     };
@@ -235,6 +238,7 @@ export class AuthService {
         email: requiredString(verified.payload, "email"),
         source: "oidc",
         lastSeenAt: new Date().toISOString(),
+        isPreparer: false,
       },
       permissions: permissionsFromClaims(verified.payload),
     };

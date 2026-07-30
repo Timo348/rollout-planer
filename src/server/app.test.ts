@@ -69,6 +69,7 @@ function oidcUser(id: string, username: string): AppUser {
     displayName: `${username} Beispiel`,
     source: "oidc",
     lastSeenAt: "2026-07-15T08:00:00.000Z",
+    isPreparer: false,
   };
 }
 
@@ -452,5 +453,95 @@ describe("Rollout API", () => {
       headers: { cookie: bobCookie },
     });
     expect(staleBootstrap.statusCode).toBe(401);
+  });
+
+  it("erlaubt nur Vorbereitern, Termine als vorbereitet zu markieren", async () => {
+    const config = await testConfig(true);
+    const store = new StateStore(
+      config.databaseUrl,
+      () => new Date("2026-07-15T08:00:00.000Z"),
+      true,
+      config.dataFile,
+    );
+    await store.initialize();
+    const bob = oidcUser("oidc:bob", "bob");
+    await store.upsertUser(bob);
+    const app = await buildApp(config, store);
+    apps.push(app);
+
+    const bobCookie = await sessionCookie(config, {
+      user: bob,
+      permissions: { manageUsers: false },
+    });
+    const devLogin = await app.inject({
+      method: "POST",
+      url: "/api/auth/dev-login",
+      headers: { origin: "http://localhost:8080" },
+    });
+    const adminCookie = cookieFrom(devLogin);
+    const bootstrap = (
+      await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie: adminCookie } })
+    ).json<BootstrapResponse>();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/appointments/batch",
+      headers: {
+        cookie: adminCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: {
+        date: bootstrap.dates.today,
+        slots: [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
+      },
+    });
+    const appointment = created.json<{ appointments: BootstrapResponse["appointments"] }>()
+      .appointments[0]!;
+
+    const forbidden = await app.inject({
+      method: "PATCH",
+      url: `/api/appointments/${appointment.id}/prepared`,
+      headers: {
+        cookie: bobCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { version: appointment.version, isPrepared: true },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const enabled = await app.inject({
+      method: "PATCH",
+      url: "/api/users/oidc%3Abob/preparer",
+      headers: {
+        cookie: adminCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { isPreparer: true },
+    });
+    expect(enabled.statusCode).toBe(200);
+    expect(enabled.json<{ user: AppUser }>().user.isPreparer).toBe(true);
+
+    const prepared = await app.inject({
+      method: "PATCH",
+      url: `/api/appointments/${appointment.id}/prepared`,
+      headers: {
+        cookie: bobCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { version: appointment.version, isPrepared: true },
+    });
+    expect(prepared.statusCode).toBe(200);
+    expect(prepared.json()).toMatchObject({ isPrepared: true, version: 2 });
+
+    const bobBootstrap = await app.inject({
+      method: "GET",
+      url: "/api/bootstrap",
+      headers: { cookie: bobCookie },
+    });
+    expect(bobBootstrap.json<BootstrapResponse>().currentUser.isPreparer).toBe(true);
+    expect(bobBootstrap.json<BootstrapResponse>().appointments[0]!.isPrepared).toBe(true);
   });
 });

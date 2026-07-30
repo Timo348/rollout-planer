@@ -27,7 +27,8 @@ export async function openDatabase(connectionString: string): Promise<Database> 
       last_seen_at TEXT NOT NULL,
       avatar_key TEXT,
       avatar_mime_type TEXT,
-      avatar_updated_at TEXT
+      avatar_updated_at TEXT,
+      is_preparer BOOLEAN NOT NULL DEFAULT FALSE
     )
   `);
   // Bestand aus Version 3.0: alte Quellen-Einschränkung ohne 'local' entfernen.
@@ -36,6 +37,10 @@ export async function openDatabase(connectionString: string): Promise<Database> 
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS agenda_mails_enabled BOOLEAN");
   // Bestand älterer Versionen: manuellen Statistik-Korrekturwert nachrüsten.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS stats_adjustment INTEGER");
+  // Bestand älterer Versionen: Vorbereiter-Rolle nachrüsten.
+  await pool.query(
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_preparer BOOLEAN NOT NULL DEFAULT FALSE",
+  );
   await pool.query(`
     CREATE TABLE IF NOT EXISTS appointments (
       id TEXT PRIMARY KEY,
@@ -47,9 +52,14 @@ export async function openDatabase(connectionString: string): Promise<Database> 
       created_by TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL
+      version INTEGER NOT NULL,
+      is_prepared BOOLEAN NOT NULL DEFAULT FALSE
     )
   `);
+  // Bestand älterer Versionen: Vorbereitungsstatus nachrüsten.
+  await pool.query(
+    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS is_prepared BOOLEAN NOT NULL DEFAULT FALSE",
+  );
   return pool;
 }
 

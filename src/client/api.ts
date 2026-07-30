@@ -91,6 +91,16 @@ export const api = {
     }),
   deleteAvatar: () =>
     request<{ user: AppUser }>("/api/users/me/avatar", { method: "DELETE" }),
+  setUserPreparer: (id: string, isPreparer: boolean) =>
+    request<{ user: AppUser }>(`/api/users/${encodeURIComponent(id)}/preparer`, {
+      method: "PATCH",
+      body: JSON.stringify({ isPreparer }),
+    }),
+  setAppointmentPrepared: (id: string, version: number, isPrepared: boolean) =>
+    request<Appointment>(`/api/appointments/${encodeURIComponent(id)}/prepared`, {
+      method: "PATCH",
+      body: JSON.stringify({ version, isPrepared }),
+    }),
   deleteUser: (id: string) =>
     request<void>(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" }),
   sendAgendaMails: () =>
