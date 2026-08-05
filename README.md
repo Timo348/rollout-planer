@@ -123,7 +123,44 @@ Beim ersten Start mit leerer Datenbank importiert die Anwendung einen vorhandene
 
 Die Anwendung ist für genau eine Container-Instanz ausgelegt; mehrere parallele App-Replikate dürfen nicht dieselbe Datenbank verwenden.
 
-Für eine Sicherung den Stack kurz stoppen und die Docker-Volumes `rollout-planer-db` und `rollout-planer-data` mit der vorhandenen Server-Sicherungsstrategie sichern.
+### Datenbank-Backup
+
+Das Skript `backup.sh` erstellt bei laufender Anwendung einen konsistenten, komprimierten PostgreSQL-Dump. Gesichert werden:
+
+- alle aktuell eingetragenen Termine (`appointments`),
+- alle Tages-Historientabellen (`history_YYYY_MM_DD`),
+- die Benutzerzeilen (`users`), weil Namen, Zuordnungen und `stats_adjustment` für die Statistik benötigt werden.
+
+Profilbilder und andere Daten aus dem Volume `rollout-planer-data` gehören bewusst nicht zu diesem Backup. Der Vorbereiter-Status wird zwar zusammen mit der Benutzerzeile gespeichert, ist für die Wiederherstellung der Statistik aber ohne Bedeutung.
+
+Einmalig ausführbar machen und anschließend starten:
+
+```bash
+chmod +x backup.sh restore.sh
+./backup.sh
+```
+
+Standardmäßig landen die Dumps in `./backups` und werden nicht automatisch gelöscht. Zielverzeichnis und Aufbewahrungsdauer lassen sich beispielsweise so setzen:
+
+```bash
+BACKUP_DIR=/srv/backups/rollout BACKUP_RETENTION_DAYS=30 ./backup.sh
+```
+
+Für einen täglichen Lauf um 02:15 Uhr kann auf dem Server ein Cron-Eintrag verwendet werden (Pfad anpassen):
+
+```cron
+15 2 * * * cd /opt/rollout && BACKUP_DIR=/srv/backups/rollout BACKUP_RETENTION_DAYS=30 ./backup.sh >> /var/log/rollout-backup.log 2>&1
+```
+
+Das Skript prüft den Dump nach der Erstellung und legt, falls `sha256sum` vorhanden ist, zusätzlich eine Prüfsummendatei an. Eine gesetzte Aufbewahrungsdauer löscht ausschließlich passend benannte Backup-Dateien, die älter als die angegebene Anzahl Tage sind.
+
+Das Restore-Skript prüft den Dump, erstellt ein zusätzliches Sicherheitsbackup des aktuellen Stands und stoppt/startet die Anwendung automatisch:
+
+```bash
+./restore.sh backups/rollout_YYYYMMDD_HHMMSS.dump
+```
+
+Die Wiederherstellung ersetzt die im Dump enthaltenen Tabellen. Vor einem Restore sollte daher immer zusätzlich ein aktuelles Backup erstellt werden.
 
 ## Befehle
 

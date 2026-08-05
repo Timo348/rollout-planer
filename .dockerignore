@@ -5,3 +5,6 @@ dist
 data
 coverage
 *.log
+backups
+backup.sh
+restore.sh
