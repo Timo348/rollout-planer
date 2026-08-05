@@ -23,6 +23,8 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - manueller Versand der Tagesagenda per Button „Terminmail heute senden“ neben der Benutzerverwaltung (nur für Admins mit der Authentik-Gruppe `rollout-planner-admin`)
 - Rückblick auf vergangene Tage über die Navigation: archivierte Termine inklusive Zuweisung pro Tag einsehen
 - Statistik für Admins (Authentik-Gruppe `rollout-planner-admin`) im Arbeitsbereich: durchgeführte Termine pro Person für die letzten 14 Tage, den aktuellen Monat oder insgesamt, mit manueller Plus/Minus-Korrektur; die Zählung aktualisiert sich automatisch mit der täglichen Archivierung
+- Änderungsmodul für alle Benutzer: Admins veröffentlichen Meldungen mit bis zu 50 Wörtern, die nach 21 Tagen automatisch von „Aktuelles“ nach „Allgemeines“ wechseln; neue Meldungen werden benutzerspezifisch mit `!` markiert
+- optionaler Punkt „Anleitung“ in der linken Navigation; das Ziel wird mit `GUIDE_URL` in `.env`/Compose konfiguriert und in einem neuen Tab geöffnet
 - tägliche Termin-E-Mail pro Benutzer individuell abbestellbar (Umschalter im Profilmenü)
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
@@ -63,10 +65,13 @@ OIDC_ISSUER=https://authentik.intern.example/application/o/rollout-planer/
 OIDC_CLIENT_ID=<client-id>
 OIDC_CLIENT_SECRET=<client-secret>
 DEV_LOGIN_ENABLED=false
+GUIDE_URL=https://wiki.intern.example/rollout-anleitung
 ```
 
 6. Die Callback-Adresse in Authentik und `APP_BASE_URL` müssen einschließlich Schema und Host zusammenpassen.
 7. Image laden und Container starten: `docker compose pull` und danach `docker compose up -d`.
+
+`GUIDE_URL` ist optional. Bleibt der Wert leer, wird der Navigationspunkt „Anleitung“ nicht angezeigt. Erlaubt sind vollständige HTTP- und HTTPS-Adressen.
 
 Authentik selbst ist nicht Bestandteil dieser Compose-Datei; die Anwendung verbindet sich mit der bereits vorhandenen internen Instanz.
 
@@ -111,6 +116,7 @@ Gespeichert werden:
 
 - Termine für die fünf angezeigten Planungstage (Tabelle `appointments`)
 - Benutzer, die sich mindestens einmal erfolgreich angemeldet haben (Tabelle `users`)
+- veröffentlichte Änderungsmeldungen und der benutzerspezifische Lesestatus (Tabellen `change_notices` und `change_notice_reads`)
 - Profilbilder im Unterordner `avatars` des Docker-Volumes `rollout-planer-data` (`/app/data`)
 
 ### Historie pro Tag

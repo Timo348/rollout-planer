@@ -31,6 +31,7 @@ async function testConfig(devLoginEnabled = true): Promise<AppConfig> {
     host: "127.0.0.1",
     port: 0,
     appBaseUrl: "http://localhost:8080",
+    guideUrl: "https://wiki.example.test/rollout",
     databaseUrl,
     dataFile: path.join(directory, "state.json"),
     staticDir: path.join(directory, "public"),
@@ -119,6 +120,7 @@ describe("Rollout API", () => {
     const firstBootstrap = await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie } });
     const initial = firstBootstrap.json<BootstrapResponse>();
     expect(initial.permissions).toEqual({ manageUsers: true });
+    expect(initial.guideUrl).toBe("https://wiki.example.test/rollout");
     expect(initial.dates.planningDays).toHaveLength(5);
     expect(initial.fixedSlots).toEqual([
       { startTime: "08:00", endTime: "09:00" },
@@ -543,5 +545,121 @@ describe("Rollout API", () => {
     });
     expect(bobBootstrap.json<BootstrapResponse>().currentUser.isPreparer).toBe(true);
     expect(bobBootstrap.json<BootstrapResponse>().appointments[0]!.isPrepared).toBe(true);
+  });
+
+  it("verwaltet Änderungsmeldungen, Lesestatus und das 21-Tage-Archiv", async () => {
+    const config = await testConfig(true);
+    let now = new Date("2026-08-05T10:00:00.000Z");
+    const store = new StateStore(config.databaseUrl, () => now, true, config.dataFile);
+    await store.initialize();
+    const bob = oidcUser("oidc:bob", "bob");
+    await store.upsertUser(bob);
+    const app = await buildApp(config, store);
+    apps.push(app);
+
+    const bobCookie = await sessionCookie(config, {
+      user: bob,
+      permissions: { manageUsers: false },
+    });
+    const adminLogin = await app.inject({
+      method: "POST",
+      url: "/api/auth/dev-login",
+      headers: { origin: "http://localhost:8080" },
+    });
+    const adminCookie = cookieFrom(adminLogin);
+
+    expect((await app.inject({
+      method: "GET",
+      url: "/api/bootstrap",
+      headers: { cookie: bobCookie },
+    })).json<BootstrapResponse>().hasUnreadChanges).toBe(false);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/changes",
+      headers: {
+        cookie: adminCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { content: "Die Drucker-Installation funktioniert wieder." },
+    });
+    expect(created.statusCode).toBe(201);
+    const noticeId = created.json<{ notice: { id: string } }>().notice.id;
+
+    expect((await app.inject({
+      method: "GET",
+      url: "/api/bootstrap",
+      headers: { cookie: adminCookie },
+    })).json<BootstrapResponse>().hasUnreadChanges).toBe(false);
+    expect((await app.inject({
+      method: "GET",
+      url: "/api/bootstrap",
+      headers: { cookie: bobCookie },
+    })).json<BootstrapResponse>().hasUnreadChanges).toBe(true);
+
+    const viewed = await app.inject({
+      method: "POST",
+      url: "/api/changes/view",
+      headers: { cookie: bobCookie, origin: "http://localhost:8080" },
+    });
+    expect(viewed.statusCode).toBe(200);
+    expect(viewed.json<{ current: Array<{ id: string }>; general: unknown[] }>().current)
+      .toEqual([expect.objectContaining({ id: noticeId })]);
+    expect(viewed.json<{ current: unknown[]; general: unknown[] }>().general).toHaveLength(0);
+    expect((await app.inject({
+      method: "GET",
+      url: "/api/bootstrap",
+      headers: { cookie: bobCookie },
+    })).json<BootstrapResponse>().hasUnreadChanges).toBe(false);
+
+    now = new Date("2026-08-27T10:00:00.000Z");
+    const archived = await app.inject({
+      method: "POST",
+      url: "/api/changes/view",
+      headers: { cookie: bobCookie, origin: "http://localhost:8080" },
+    });
+    expect(archived.json<{ current: unknown[]; general: Array<{ id: string }> }>().current)
+      .toHaveLength(0);
+    expect(archived.json<{ current: unknown[]; general: Array<{ id: string }> }>().general)
+      .toEqual([expect.objectContaining({ id: noticeId })]);
+
+    const forbiddenCreate = await app.inject({
+      method: "POST",
+      url: "/api/changes",
+      headers: {
+        cookie: bobCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { content: "Nicht erlaubt" },
+    });
+    expect(forbiddenCreate.statusCode).toBe(403);
+
+    const tooLong = await app.inject({
+      method: "POST",
+      url: "/api/changes",
+      headers: {
+        cookie: adminCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { content: Array.from({ length: 51 }, () => "Wort").join(" ") },
+    });
+    expect(tooLong.statusCode).toBe(400);
+
+    const forbiddenDelete = await app.inject({
+      method: "DELETE",
+      url: `/api/changes/${noticeId}`,
+      headers: { cookie: bobCookie, origin: "http://localhost:8080" },
+    });
+    expect(forbiddenDelete.statusCode).toBe(403);
+
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: `/api/changes/${noticeId}`,
+      headers: { cookie: adminCookie, origin: "http://localhost:8080" },
+    });
+    expect(deleted.statusCode).toBe(204);
   });
 });

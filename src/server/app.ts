@@ -83,6 +83,16 @@ const preparedSchema = z.object({
   version: z.number().int().positive(),
   isPrepared: z.boolean(),
 });
+const changeNoticeSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .min(1, "Bitte eine Änderung eintragen.")
+    .max(1000, "Die Änderung ist zu lang.")
+    .refine((value) => value.split(/\s+/).filter(Boolean).length <= 50, {
+      message: "Eine Änderung darf maximal 50 Wörter enthalten.",
+    }),
+});
 
 function cookieOptions(config: AppConfig) {
   return {
@@ -303,6 +313,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
   app.get("/api/bootstrap", { preHandler: [authenticate] }, async (request) => ({
     ...await store.getBootstrap(request.currentPrincipal!.user.id),
     permissions: request.currentPrincipal!.permissions,
+    guideUrl: config.guideUrl,
   }));
 
   app.delete(
@@ -398,6 +409,35 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
       .parse((request.params as { date?: string }).date);
     return { entries: await store.getHistory(date) };
   });
+
+  app.post(
+    "/api/changes/view",
+    { preHandler: [authenticate, verifyOrigin] },
+    async (request) => store.viewChangeNotices(request.currentPrincipal!.user.id),
+  );
+
+  app.post(
+    "/api/changes",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request, reply) => {
+      const { content } = changeNoticeSchema.parse(request.body);
+      const notice = await store.createChangeNotice(
+        content,
+        request.currentPrincipal!.user,
+      );
+      return reply.code(201).send({ notice });
+    },
+  );
+
+  app.delete(
+    "/api/changes/:id",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request, reply) => {
+      const id = z.string().regex(/^\d+$/).parse((request.params as { id?: string }).id);
+      await store.deleteChangeNotice(id);
+      return reply.code(204).send();
+    },
+  );
 
   app.get("/api/users/:id/avatar", { preHandler: [authenticate] }, async (request, reply) => {
     const id = z.string().min(1).parse((request.params as { id?: string }).id);

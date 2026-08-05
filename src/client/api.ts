@@ -6,6 +6,8 @@ import type {
   AssignmentStatsEntry,
   AssignmentStatsPeriod,
   BootstrapResponse,
+  ChangeNotice,
+  ChangeNoticeLists,
   SessionResponse,
 } from "../shared/contracts";
 
@@ -119,4 +121,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ delta }),
     }),
+  viewChanges: () =>
+    request<ChangeNoticeLists>("/api/changes/view", { method: "POST" }),
+  createChange: (content: string) =>
+    request<{ notice: ChangeNotice }>("/api/changes", {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }),
+  deleteChange: (id: string) =>
+    request<void>(`/api/changes/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };

@@ -3,6 +3,8 @@ import type {
   Appointment,
   AppointmentHistoryEntry,
   AppUser,
+  ChangeNotice,
+  ChangeNoticeLists,
 } from "../shared/contracts.js";
 
 export type Database = pg.Pool;
@@ -60,7 +62,116 @@ export async function openDatabase(connectionString: string): Promise<Database> 
   await pool.query(
     "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS is_prepared BOOLEAN NOT NULL DEFAULT FALSE",
   );
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS change_notices (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      content TEXT NOT NULL,
+      published_at TEXT NOT NULL,
+      published_by TEXT NOT NULL,
+      published_by_name TEXT NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS change_notice_reads (
+      user_id TEXT PRIMARY KEY,
+      last_seen_change_id BIGINT NOT NULL DEFAULT 0
+    )
+  `);
   return pool;
+}
+
+function mapChangeNotice(row: Record<string, unknown>): ChangeNotice {
+  return {
+    id: String(row.id),
+    content: String(row.content),
+    publishedAt: String(row.published_at),
+    publishedBy: String(row.published_by),
+    publishedByName: String(row.published_by_name),
+  };
+}
+
+export async function hasUnreadChangeNotices(
+  db: Queryable,
+  userId: string,
+): Promise<boolean> {
+  const result = await db.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM change_notices notice
+       WHERE notice.id > COALESCE(
+         (SELECT last_seen_change_id FROM change_notice_reads WHERE user_id = $1),
+         0
+       )
+     ) AS has_unread`,
+    [userId],
+  );
+  return Boolean(result.rows[0]?.has_unread);
+}
+
+export async function readChangeNotices(
+  db: Queryable,
+  userId: string,
+  now: Date,
+): Promise<ChangeNoticeLists> {
+  const result = await db.query(
+    "SELECT * FROM change_notices ORDER BY id DESC",
+  );
+  const entries = result.rows.map((row) => mapChangeNotice(row));
+  const newestId = entries[0]?.id;
+  if (newestId) {
+    await db.query(
+      `INSERT INTO change_notice_reads (user_id, last_seen_change_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE
+       SET last_seen_change_id = GREATEST(
+         change_notice_reads.last_seen_change_id,
+         EXCLUDED.last_seen_change_id
+       )`,
+      [userId, newestId],
+    );
+  }
+
+  const cutoff = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    current: entries.filter((entry) => entry.publishedAt > cutoff),
+    general: entries.filter((entry) => entry.publishedAt <= cutoff),
+  };
+}
+
+export async function insertChangeNotice(
+  db: Queryable,
+  content: string,
+  author: AppUser,
+  publishedAt: string,
+): Promise<ChangeNotice> {
+  const result = await db.query(
+    `INSERT INTO change_notices (
+       content, published_at, published_by, published_by_name
+     ) VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [content, publishedAt, author.id, author.displayName],
+  );
+  const notice = mapChangeNotice(result.rows[0]!);
+  await db.query(
+    `INSERT INTO change_notice_reads (user_id, last_seen_change_id)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE
+     SET last_seen_change_id = GREATEST(
+       change_notice_reads.last_seen_change_id,
+       EXCLUDED.last_seen_change_id
+     )`,
+    [author.id, notice.id],
+  );
+  return notice;
+}
+
+export async function removeChangeNotice(db: Queryable, id: string): Promise<boolean> {
+  const result = await db.query("DELETE FROM change_notices WHERE id = $1", [id]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function removeChangeNoticeRead(db: Queryable, userId: string): Promise<void> {
+  await db.query("DELETE FROM change_notice_reads WHERE user_id = $1", [userId]);
 }
 
 const dayPattern = /^\d{4}-\d{2}-\d{2}$/;

@@ -8,12 +8,19 @@ import type {
   AssignmentStatsEntry,
   AvatarMimeType,
   BootstrapResponse,
+  ChangeNotice,
+  ChangeNoticeLists,
 } from "../shared/contracts.js";
 import {
   archiveAppointments,
   countAssignmentsByAssignee,
+  hasUnreadChangeNotices,
+  insertChangeNotice,
   openDatabase,
+  readChangeNotices,
   readHistory,
+  removeChangeNotice,
+  removeChangeNoticeRead,
   type ArchiveRecord,
   type Database,
 } from "./db.js";
@@ -297,6 +304,24 @@ export class StateStore {
     });
   }
 
+  async viewChangeNotices(userId: string): Promise<ChangeNoticeLists> {
+    return this.enqueue(async () => readChangeNotices(this.database(), userId, this.now()));
+  }
+
+  async createChangeNotice(content: string, author: AppUser): Promise<ChangeNotice> {
+    return this.enqueue(async () =>
+      insertChangeNotice(this.database(), content, author, this.now().toISOString()),
+    );
+  }
+
+  async deleteChangeNotice(id: string): Promise<void> {
+    return this.enqueue(async () => {
+      if (!await removeChangeNotice(this.database(), id)) {
+        throw new NotFoundError("Die Änderungsmeldung wurde nicht gefunden.");
+      }
+    });
+  }
+
   async deleteUser(id: string): Promise<AppUser> {
     return this.enqueue(async () => {
       await this.applyCleanup();
@@ -319,11 +344,14 @@ export class StateStore {
       );
 
       await this.persist();
+      await removeChangeNoticeRead(this.database(), id);
       return structuredClone(removed);
     });
   }
 
-  async getBootstrap(currentUserId: string): Promise<Omit<BootstrapResponse, "permissions">> {
+  async getBootstrap(
+    currentUserId: string,
+  ): Promise<Omit<BootstrapResponse, "permissions" | "guideUrl">> {
     return this.enqueue(async () => {
       await this.applyCleanup();
       const currentUser = this.state.users.find((user) => user.id === currentUserId);
@@ -346,6 +374,7 @@ export class StateStore {
         dates,
         fixedSlots: FIXED_SLOTS,
         limits: { maxAppointmentsPerSlot: MAX_APPOINTMENTS_PER_SLOT },
+        hasUnreadChanges: await hasUnreadChangeNotices(this.database(), currentUserId),
       };
     });
   }

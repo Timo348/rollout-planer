@@ -36,6 +36,19 @@ export interface AssignmentStatsEntry {
 
 export type AssignmentStatsPeriod = "14d" | "month" | "all";
 
+export interface ChangeNotice {
+  id: string;
+  content: string;
+  publishedAt: string;
+  publishedBy: string;
+  publishedByName: string;
+}
+
+export interface ChangeNoticeLists {
+  current: ChangeNotice[];
+  general: ChangeNotice[];
+}
+
 export interface Appointment {
   id: string;
   date: string;
@@ -92,6 +105,8 @@ export interface BootstrapResponse {
     maxAppointmentsPerSlot: number;
   };
   permissions: AppPermissions;
+  hasUnreadChanges: boolean;
+  guideUrl: string | null;
 }
 
 export interface SessionResponse {

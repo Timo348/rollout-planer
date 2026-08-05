@@ -6,18 +6,22 @@ import {
   ChevronDown,
   CircleUserRound,
   Clock3,
+  ExternalLink,
+  BookOpenText,
   History,
   ImagePlus,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
   MailPlus,
+  Megaphone,
   Menu,
   Minus,
   Moon,
   Pencil,
   Plus,
   RefreshCw,
+  Send,
   Sun,
   Trash2,
   UserCheck,
@@ -25,9 +29,9 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import type { AppUser, Appointment, AppointmentHistoryEntry, AssignmentStatsEntry, AssignmentStatsPeriod, BootstrapResponse, FixedSlot } from "../shared/contracts";
+import type { AppUser, Appointment, AppointmentHistoryEntry, AssignmentStatsEntry, AssignmentStatsPeriod, BootstrapResponse, ChangeNotice, ChangeNoticeLists, FixedSlot } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { ConfirmDialog, CreateDialog, EditDialog } from "./Dialogs";
 import { useTheme } from "./theme";
@@ -67,6 +71,19 @@ function formatDayMonth(date: string): string {
 
 function formatTime(start: string, end: string): string {
   return `${start} – ${end}`;
+}
+
+function formatPublishedAt(value: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Berlin",
+  }).format(new Date(value));
+}
+
+function countWords(value: string): number {
+  const trimmed = value.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
 function initials(name: string): string {
@@ -599,6 +616,165 @@ function StatsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+export function ChangesDialog({
+  canManage,
+  onClose,
+  onViewed,
+}: {
+  canManage: boolean;
+  onClose: () => void;
+  onViewed: () => void;
+}) {
+  const [entries, setEntries] = useState<ChangeNoticeLists | null>(null);
+  const [tab, setTab] = useState<"current" | "general">("current");
+  const [content, setContent] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ChangeNotice | null>(null);
+  const words = countWords(content);
+
+  useEffect(() => {
+    let active = true;
+    void api.viewChanges()
+      .then((result) => {
+        if (!active) return;
+        setEntries(result);
+        onViewed();
+      })
+      .catch((caught) => {
+        if (active) setError(caught instanceof Error ? caught.message : "Änderungen konnten nicht geladen werden.");
+      });
+    return () => { active = false; };
+  }, [onViewed]);
+
+  const publish = async (event: FormEvent) => {
+    event.preventDefault();
+    if (words === 0 || words > 50) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { notice } = await api.createChange(content);
+      setEntries((current) => ({
+        current: [notice, ...(current?.current ?? [])],
+        general: current?.general ?? [],
+      }));
+      setContent("");
+      setTab("current");
+      onViewed();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Die Änderung konnte nicht veröffentlicht werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteNotice = async () => {
+    if (!pendingDelete) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.deleteChange(pendingDelete.id);
+      setEntries((current) => current ? {
+        current: current.current.filter((entry) => entry.id !== pendingDelete.id),
+        general: current.general.filter((entry) => entry.id !== pendingDelete.id),
+      } : current);
+      setPendingDelete(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Die Änderung konnte nicht gelöscht werden.");
+      setPendingDelete(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const visibleEntries = entries?.[tab] ?? [];
+
+  return (
+    <>
+      <div className="modal-backdrop" role="presentation">
+        <section className="modal modal--changes" role="dialog" aria-modal="true" aria-labelledby="changes-title">
+          <header className="modal__header">
+            <div><p className="eyebrow">Neuigkeiten</p><h2 id="changes-title">Änderungen</h2></div>
+            <button className="icon-button" type="button" onClick={onClose} aria-label="Dialog schließen"><X size={20} /></button>
+          </header>
+          <div className="modal__body changes__body">
+            {canManage && (
+              <form className="changes__composer" onSubmit={(event) => void publish(event)}>
+                <div className="changes__composer-heading">
+                  <div><strong>Änderung veröffentlichen</strong><small>Kurze Information für alle Benutzer eintragen.</small></div>
+                  <span className={words > 50 ? "is-over-limit" : ""}>{words}/50 Wörter</span>
+                </div>
+                <textarea
+                  value={content}
+                  maxLength={1000}
+                  rows={4}
+                  placeholder="Zum Beispiel: Die Drucker-Installation funktioniert wieder."
+                  aria-label="Neue Änderung"
+                  onChange={(event) => setContent(event.target.value)}
+                />
+                <div className="changes__composer-actions">
+                  <small>Nach 21 Tagen erscheint die Meldung automatisch unter „Allgemeines“.</small>
+                  <button className="button button--primary" type="submit" disabled={busy || words === 0 || words > 50}>
+                    {busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Veröffentlichen
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {error && <div className="alert alert--error changes__error" role="alert">{error}</div>}
+
+            <div className="stats__tabs changes__tabs" role="tablist" aria-label="Änderungsansicht">
+              <button className={tab === "current" ? "stats__tab is-active" : "stats__tab"} type="button" role="tab" aria-selected={tab === "current"} onClick={() => setTab("current")}>
+                Aktuelles {entries ? `(${entries.current.length})` : ""}
+              </button>
+              <button className={tab === "general" ? "stats__tab is-active" : "stats__tab"} type="button" role="tab" aria-selected={tab === "general"} onClick={() => setTab("general")}>
+                Allgemeines {entries ? `(${entries.general.length})` : ""}
+              </button>
+            </div>
+
+            {!entries && !error ? (
+              <div className="changes__empty"><LoaderCircle className="spin" size={18} />Änderungen werden geladen …</div>
+            ) : visibleEntries.length === 0 ? (
+              <div className="changes__empty"><Megaphone size={18} />{tab === "current" ? "Aktuell gibt es keine neuen Änderungen." : "Im allgemeinen Archiv gibt es noch keine Änderungen."}</div>
+            ) : (
+              <div className="changes__list">
+                {visibleEntries.map((entry) => (
+                  <article className="changes__item" key={entry.id}>
+                    <span className="changes__item-icon"><Megaphone size={16} /></span>
+                    <div className="changes__item-content">
+                      <p>{entry.content}</p>
+                      <small>Veröffentlicht am {formatPublishedAt(entry.publishedAt)} von {entry.publishedByName}</small>
+                    </div>
+                    {canManage && (
+                      <button className="changes__delete" type="button" disabled={busy} onClick={() => setPendingDelete(entry)} aria-label={`Änderung vom ${formatPublishedAt(entry.publishedAt)} löschen`} title="Änderung löschen">
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+          <footer className="modal__footer">
+            <span className="modal__summary">Aktuelles bleibt 21 Tage sichtbar und wird danach im allgemeinen Archiv einsortiert.</span>
+            <button className="button button--ghost" type="button" onClick={onClose}>Schließen</button>
+          </footer>
+        </section>
+      </div>
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Änderung löschen?"
+          message="Die Meldung wird für alle Benutzer endgültig entfernt."
+          destructive
+          busy={busy}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => void deleteNotice()}
+        />
+      )}
+    </>
+  );
+}
+
 export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; onLoggedOut: () => void }) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [theme, toggleTheme] = useTheme();
@@ -610,6 +786,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
   const [userManagementOpen, setUserManagementOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [changesOpen, setChangesOpen] = useState(false);
   const [agendaBusy, setAgendaBusy] = useState(false);
   const [preferencesBusy, setPreferencesBusy] = useState(false);
   const [createInitialSlot, setCreateInitialSlot] = useState<FixedSlot | null>(null);
@@ -628,6 +805,10 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
     setToast({ message, tone });
     window.setTimeout(() => setToast(null), 3500);
   };
+
+  const markChangesViewed = useCallback(() => {
+    setData((current) => current ? { ...current, hasUnreadChanges: false } : current);
+  }, []);
 
   const openCreateDialog = (initialSlot: FixedSlot | null = null) => {
     setCreateInitialSlot(initialSlot);
@@ -862,6 +1043,15 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
         <nav className="sidebar-nav" aria-label="Hauptnavigation">
           <span className="sidebar-nav__label">Arbeitsbereich</span>
           <button className="sidebar-nav__item is-active" type="button"><LayoutDashboard size={18} />Terminübersicht</button>
+          <button className="sidebar-nav__item" type="button" onClick={() => { setChangesOpen(true); setNavOpen(false); }}>
+            <Megaphone size={18} /><span>Änderungen</span>
+            {data.hasUnreadChanges && <span className="sidebar-nav__alert" aria-label="Neue Änderung">!</span>}
+          </button>
+          {data.guideUrl && (
+            <a className="sidebar-nav__item" href={data.guideUrl} target="_blank" rel="noreferrer noopener">
+              <BookOpenText size={18} /><span>Anleitung</span><ExternalLink className="sidebar-nav__external" size={13} />
+            </a>
+          )}
           <button className="sidebar-nav__item" type="button" onClick={() => { setHistoryOpen(true); setNavOpen(false); }}><History size={18} />Vergangene Tage</button>
           {data.permissions.manageUsers && <button className="sidebar-nav__item" type="button" onClick={() => { setStatsOpen(true); setNavOpen(false); }}><ChartColumn size={18} />Statistik</button>}
         </nav>
@@ -1016,6 +1206,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       {editing && <EditDialog appointment={editing} users={data.users} onClose={() => setEditing(null)} onSave={async (payload) => { await mutate(editing, () => api.updateAppointment(editing.id, payload), "Termin gespeichert."); setEditing(null); }} />}
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
       {statsOpen && data.permissions.manageUsers && <StatsDialog onClose={() => setStatsOpen(false)} />}
+      {changesOpen && <ChangesDialog canManage={data.permissions.manageUsers} onClose={() => setChangesOpen(false)} onViewed={markChangesViewed} />}
       {confirm && <ConfirmDialog title={confirm.title} message={confirm.message} destructive={confirm.destructive} busy={confirmBusy} onCancel={() => setConfirm(null)} onConfirm={() => void runConfirmed()} />}
       {toast && <div className={`toast toast--${toast.tone}`} role="status">{toast.tone === "success" ? <Check size={17} /> : <X size={17} />}{toast.message}</div>}
     </div>

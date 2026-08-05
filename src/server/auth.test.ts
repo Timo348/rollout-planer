@@ -9,6 +9,7 @@ function config(): AppConfig {
     host: "127.0.0.1",
     port: 8080,
     appBaseUrl: "http://localhost:8080",
+    guideUrl: null,
     databaseUrl: "postgres://postgres:postgres@localhost:5432/rollout",
     dataFile: "state.json",
     staticDir: "public",

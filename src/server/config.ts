@@ -21,6 +21,7 @@ export interface AppConfig {
   host: string;
   port: number;
   appBaseUrl: string;
+  guideUrl: string | null;
   databaseUrl: string;
   dataFile: string;
   staticDir: string;
@@ -47,6 +48,21 @@ function parsePositiveNumber(value: string | undefined, fallback: number): numbe
   if (!value) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseOptionalHttpUrl(value: string | undefined, name: string): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error(`${name} ist keine gültige URL.`);
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error(`${name} muss eine HTTP- oder HTTPS-URL sein.`);
+  }
+  return parsed.toString();
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -79,6 +95,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     host: env.HOST ?? "0.0.0.0",
     port: parsePositiveNumber(env.PORT, 8080),
     appBaseUrl,
+    guideUrl: parseOptionalHttpUrl(env.GUIDE_URL, "GUIDE_URL"),
     databaseUrl: env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/rollout",
     dataFile: path.resolve(env.DATA_FILE ?? "./data/rollout-state.json"),
     staticDir: path.resolve(env.STATIC_DIR ?? "./dist/public"),

@@ -2,7 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AppUser, Appointment } from "../shared/contracts";
-import { AppointmentCard, UserManagementDialog } from "./Dashboard";
+import { AppointmentCard, ChangesDialog, UserManagementDialog } from "./Dashboard";
 
 Object.assign(globalThis, { React });
 
@@ -74,5 +74,31 @@ describe("Vorbereiter-Oberfläche", () => {
     expect(markup).toContain("user-management__preparer is-active");
     expect(markup).toContain('type="checkbox"');
     expect(markup).toContain("Vorbereiter");
+  });
+});
+
+describe("Änderungsmodul", () => {
+  it("zeigt Admins das Eingabefeld mit Wortlimit", () => {
+    const markup = renderToStaticMarkup(React.createElement(ChangesDialog, {
+      canManage: true,
+      onClose: vi.fn(),
+      onViewed: vi.fn(),
+    }));
+
+    expect(markup).toContain("Änderung veröffentlichen");
+    expect(markup).toContain("0/50 Wörter");
+    expect(markup).toContain("Aktuelles");
+    expect(markup).toContain("Allgemeines");
+  });
+
+  it("blendet die Veröffentlichung für normale Benutzer aus", () => {
+    const markup = renderToStaticMarkup(React.createElement(ChangesDialog, {
+      canManage: false,
+      onClose: vi.fn(),
+      onViewed: vi.fn(),
+    }));
+
+    expect(markup).not.toContain("Änderung veröffentlichen");
+    expect(markup).toContain("Änderungen werden geladen");
   });
 });
