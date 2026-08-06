@@ -662,4 +662,66 @@ describe("Rollout API", () => {
     });
     expect(deleted.statusCode).toBe(204);
   });
+
+  it("stellt mehrere öffentliche Dashboards bereit und schützt ihre Verwaltung", async () => {
+    const app = await createApp();
+    const anonymous = await app.inject({ method: "GET", url: "/api/public/dashboard" });
+    expect(anonymous.statusCode).toBe(200);
+    expect(anonymous.json<{ dashboard: { slug: string }; appointments: unknown[] }>() ).toMatchObject({
+      dashboard: { slug: "standard" },
+      appointments: [],
+    });
+    expect((await app.inject({ method: "GET", url: "/api/admin/public-dashboards" })).statusCode).toBe(401);
+
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/auth/dev-login",
+      headers: { origin: "http://localhost:8080" },
+    });
+    const cookie = cookieFrom(login);
+    const payload = {
+      name: "Empfang",
+      slug: "empfang",
+      title: "Empfangstermine",
+      subtitle: "Willkommen",
+      isEnabled: true,
+      appointmentScope: "today" as const,
+      trendDays: 30 as const,
+      showAppointmentNames: false,
+      showAssigneeNames: false,
+      showQuickOverview: true,
+      showPreparationStatus: false,
+      refreshSeconds: 30 as const,
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/admin/public-dashboards",
+      headers: { cookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload,
+    });
+    expect(created.statusCode).toBe(201);
+    const dashboard = created.json<{ dashboard: { id: string; slug: string } }>().dashboard;
+    expect((await app.inject({ method: "GET", url: "/api/public/dashboard/empfang" })).statusCode).toBe(200);
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/api/admin/public-dashboards",
+      headers: { cookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload,
+    });
+    expect(duplicate.statusCode).toBe(409);
+
+    const setDefault = await app.inject({
+      method: "PUT",
+      url: `/api/admin/public-dashboards/${dashboard.id}`,
+      headers: { cookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { ...payload, slug: undefined, isDefault: true },
+    });
+    expect(setDefault.statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/api/public/dashboard" })).json<{ dashboard: { slug: string } }>().dashboard.slug).toBe("empfang");
+
+    const redirect = await app.inject({ method: "GET", url: "/pubic/empfang" });
+    expect(redirect.statusCode).toBe(308);
+    expect(redirect.headers.location).toBe("/public/empfang");
+  });
 });

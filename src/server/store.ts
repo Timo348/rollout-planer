@@ -10,10 +10,15 @@ import type {
   BootstrapResponse,
   ChangeNotice,
   ChangeNoticeLists,
+  CreatePublicDashboardInput,
+  PublicDashboardResponse,
+  PublicDashboardSettings,
+  UpdatePublicDashboardInput,
 } from "../shared/contracts.js";
 import {
   archiveAppointments,
   countAssignmentsByAssignee,
+  countCompletedAppointmentsByDay,
   hasUnreadChangeNotices,
   insertChangeNotice,
   openDatabase,
@@ -25,7 +30,7 @@ import {
   type Database,
 } from "./db.js";
 import { FIXED_SLOTS, MAX_APPOINTMENTS_PER_SLOT } from "./constants.js";
-import { scheduleDates } from "./dates.js";
+import { addDays, dateInTimeZone, scheduleDates } from "./dates.js";
 
 const userSchema = z.object({
   id: z.string().min(1),
@@ -133,6 +138,28 @@ export class NotFoundError extends Error {
 }
 
 export class StateValidationError extends Error {}
+export class StateConflictError extends Error {}
+
+function mapPublicDashboard(row: Record<string, unknown>): PublicDashboardSettings {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    slug: String(row.slug),
+    title: String(row.title),
+    subtitle: String(row.subtitle),
+    isDefault: Boolean(row.is_default),
+    isEnabled: Boolean(row.is_enabled),
+    appointmentScope: String(row.appointment_scope) as PublicDashboardSettings["appointmentScope"],
+    trendDays: Number(row.trend_days) as PublicDashboardSettings["trendDays"],
+    showAppointmentNames: Boolean(row.show_appointment_names),
+    showAssigneeNames: Boolean(row.show_assignee_names),
+    showQuickOverview: Boolean(row.show_quick_overview),
+    showPreparationStatus: Boolean(row.show_preparation_status),
+    refreshSeconds: Number(row.refresh_seconds) as PublicDashboardSettings["refreshSeconds"],
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
 
 function emptyState(): StoredState {
   return { schemaVersion: 4, users: [], appointments: [] };
@@ -319,6 +346,216 @@ export class StateStore {
       if (!await removeChangeNotice(this.database(), id)) {
         throw new NotFoundError("Die Änderungsmeldung wurde nicht gefunden.");
       }
+    });
+  }
+
+  async listPublicDashboards(): Promise<PublicDashboardSettings[]> {
+    return this.enqueue(async () => {
+      const result = await this.database().query(
+        "SELECT * FROM public_dashboards ORDER BY is_default DESC, name, created_at",
+      );
+      return result.rows.map((row) => mapPublicDashboard(row));
+    });
+  }
+
+  async createPublicDashboard(input: CreatePublicDashboardInput): Promise<PublicDashboardSettings> {
+    return this.enqueue(async () => {
+      const timestamp = this.now().toISOString();
+      const id = randomUUID();
+      try {
+        const result = await this.database().query(
+          `INSERT INTO public_dashboards (
+            id, name, slug, title, subtitle, is_default, is_enabled,
+            appointment_scope, trend_days, show_appointment_names,
+            show_assignee_names, show_quick_overview, show_preparation_status,
+            refresh_seconds, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+          RETURNING *`,
+          [
+            id,
+            input.name,
+            input.slug,
+            input.title,
+            input.subtitle,
+            input.isEnabled,
+            input.appointmentScope,
+            input.trendDays,
+            input.showAppointmentNames,
+            input.showAssigneeNames,
+            input.showQuickOverview,
+            input.showPreparationStatus,
+            input.refreshSeconds,
+            timestamp,
+          ],
+        );
+        return mapPublicDashboard(result.rows[0]!);
+      } catch (error) {
+        if ((error as { code?: string }).code === "23505") {
+          throw new StateConflictError("Dieser Dashboard-Kurzlink ist bereits vergeben.");
+        }
+        throw error;
+      }
+    });
+  }
+
+  async updatePublicDashboard(
+    id: string,
+    input: UpdatePublicDashboardInput,
+  ): Promise<PublicDashboardSettings> {
+    return this.enqueue(async () => {
+      const db = this.database();
+      const existingResult = await db.query("SELECT * FROM public_dashboards WHERE id = $1", [id]);
+      if (!existingResult.rows[0]) {
+        throw new NotFoundError("Das Dashboard wurde nicht gefunden.");
+      }
+      const existing = mapPublicDashboard(existingResult.rows[0]);
+      if (existing.isDefault && !input.isDefault) {
+        throw new StateConflictError("Bitte zuerst ein anderes Dashboard als Standard festlegen.");
+      }
+
+      const client = await db.connect();
+      try {
+        await client.query("BEGIN");
+        if (input.isDefault && !existing.isDefault) {
+          await client.query("UPDATE public_dashboards SET is_default = FALSE WHERE is_default = TRUE");
+        }
+        const result = await client.query(
+          `UPDATE public_dashboards SET
+            name = $2, title = $3, subtitle = $4, is_default = $5,
+            is_enabled = $6, appointment_scope = $7, trend_days = $8,
+            show_appointment_names = $9, show_assignee_names = $10,
+            show_quick_overview = $11, show_preparation_status = $12,
+            refresh_seconds = $13, updated_at = $14
+          WHERE id = $1
+          RETURNING *`,
+          [
+            id,
+            input.name,
+            input.title,
+            input.subtitle,
+            input.isDefault,
+            input.isEnabled,
+            input.appointmentScope,
+            input.trendDays,
+            input.showAppointmentNames,
+            input.showAssigneeNames,
+            input.showQuickOverview,
+            input.showPreparationStatus,
+            input.refreshSeconds,
+            this.now().toISOString(),
+          ],
+        );
+        await client.query("COMMIT");
+        return mapPublicDashboard(result.rows[0]!);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    });
+  }
+
+  async deletePublicDashboard(id: string): Promise<void> {
+    return this.enqueue(async () => {
+      const result = await this.database().query(
+        "SELECT *, (SELECT COUNT(*) FROM public_dashboards) AS dashboard_count FROM public_dashboards WHERE id = $1",
+        [id],
+      );
+      const row = result.rows[0];
+      if (!row) throw new NotFoundError("Das Dashboard wurde nicht gefunden.");
+      if (Number(row.dashboard_count) <= 1) {
+        throw new StateConflictError("Das letzte Dashboard kann nicht gelöscht werden.");
+      }
+      if (Boolean(row.is_default)) {
+        throw new StateConflictError("Bitte zuerst ein anderes Dashboard als Standard festlegen.");
+      }
+      await this.database().query("DELETE FROM public_dashboards WHERE id = $1", [id]);
+    });
+  }
+
+  async getPublicDashboard(slug?: string): Promise<PublicDashboardResponse> {
+    return this.enqueue(async () => {
+      await this.applyCleanup();
+      const dashboardResult = slug
+        ? await this.database().query(
+            "SELECT * FROM public_dashboards WHERE slug = $1 AND is_enabled = TRUE",
+            [slug],
+          )
+        : await this.database().query(
+            "SELECT * FROM public_dashboards WHERE is_default = TRUE AND is_enabled = TRUE",
+          );
+      if (!dashboardResult.rows[0]) {
+        throw new NotFoundError("Das öffentliche Dashboard ist nicht verfügbar.");
+      }
+      const settings = mapPublicDashboard(dashboardResult.rows[0]);
+      const dates = scheduleDates(this.now());
+      const visibleDates = settings.appointmentScope === "today"
+        ? [dates.today]
+        : settings.appointmentScope === "today_tomorrow"
+          ? [dates.today, dates.nextWorkday]
+          : dates.planningDays;
+      const visibleDateSet = new Set(visibleDates);
+      const users = new Map(this.state.users.map((user) => [user.id, user.displayName]));
+      const appointments = this.state.appointments
+        .filter((appointment) => visibleDateSet.has(appointment.date))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime) || a.name.localeCompare(b.name, "de"))
+        .map((appointment) => ({
+          id: appointment.id,
+          date: appointment.date,
+          startTime: appointment.startTime,
+          endTime: appointment.endTime,
+          ...(settings.showAppointmentNames ? { name: appointment.name } : {}),
+          ...(settings.showAssigneeNames && appointment.assigneeId
+            ? { assigneeName: users.get(appointment.assigneeId) ?? "Nicht verfügbar" }
+            : {}),
+          isAssigned: appointment.assigneeId !== null,
+          ...(settings.showPreparationStatus ? { isPrepared: appointment.isPrepared } : {}),
+        }));
+
+      const today = dateInTimeZone(this.now());
+      const trendFrom = addDays(today, -(settings.trendDays - 1));
+      const completedCounts = await countCompletedAppointmentsByDay(
+        this.database(),
+        trendFrom,
+        today,
+      );
+      const trend = Array.from({ length: settings.trendDays }, (_, index) => {
+        const date = addDays(trendFrom, index);
+        return { date, completed: completedCounts.get(date) ?? 0 };
+      });
+      const todayAppointments = this.state.appointments.filter((entry) => entry.date === dates.today);
+      const quickOverview = settings.showQuickOverview
+        ? {
+            todayPlanned: todayAppointments.length,
+            todayAssigned: todayAppointments.filter((entry) => entry.assigneeId !== null).length,
+            todayUnassigned: todayAppointments.filter((entry) => entry.assigneeId === null).length,
+            todayPrepared: todayAppointments.filter((entry) => entry.isPrepared).length,
+            completedInTrend: trend.reduce((sum, point) => sum + point.completed, 0),
+            ...(settings.appointmentScope !== "today"
+              ? { tomorrowPlanned: this.state.appointments.filter((entry) => entry.date === dates.nextWorkday).length }
+              : {}),
+          }
+        : undefined;
+
+      return {
+        dashboard: {
+          slug: settings.slug,
+          title: settings.title,
+          subtitle: settings.subtitle,
+          appointmentScope: settings.appointmentScope,
+          trendDays: settings.trendDays,
+          showQuickOverview: settings.showQuickOverview,
+          showPreparationStatus: settings.showPreparationStatus,
+          refreshSeconds: settings.refreshSeconds,
+        },
+        dates,
+        visibleDates,
+        appointments,
+        trend,
+        ...(quickOverview ? { quickOverview } : {}),
+        generatedAt: this.now().toISOString(),
+      };
     });
   }
 

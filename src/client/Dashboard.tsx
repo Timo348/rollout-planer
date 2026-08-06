@@ -8,6 +8,7 @@ import {
   Clock3,
   ExternalLink,
   BookOpenText,
+  Gauge,
   History,
   ImagePlus,
   LayoutDashboard,
@@ -34,6 +35,7 @@ import { createPortal } from "react-dom";
 import type { AppUser, Appointment, AppointmentHistoryEntry, AssignmentStatsEntry, AssignmentStatsPeriod, BootstrapResponse, ChangeNotice, ChangeNoticeLists, FixedSlot } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { ConfirmDialog, CreateDialog, EditDialog } from "./Dialogs";
+import { PublicDashboardAdmin } from "./PublicDashboardAdmin";
 import { useTheme } from "./theme";
 
 function formatDateLong(date: string): string {
@@ -787,6 +789,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
+  const [publicDashboardsOpen, setPublicDashboardsOpen] = useState(false);
   const [agendaBusy, setAgendaBusy] = useState(false);
   const [preferencesBusy, setPreferencesBusy] = useState(false);
   const [createInitialSlot, setCreateInitialSlot] = useState<FixedSlot | null>(null);
@@ -1053,6 +1056,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
             </a>
           )}
           <button className="sidebar-nav__item" type="button" onClick={() => { setHistoryOpen(true); setNavOpen(false); }}><History size={18} />Vergangene Tage</button>
+          {data.permissions.manageUsers && <button className="sidebar-nav__item" type="button" onClick={() => { setPublicDashboardsOpen(true); setNavOpen(false); }}><Gauge size={18} />Dashboard</button>}
           {data.permissions.manageUsers && <button className="sidebar-nav__item" type="button" onClick={() => { setStatsOpen(true); setNavOpen(false); }}><ChartColumn size={18} />Statistik</button>}
         </nav>
         <section className="sidebar-planning" aria-label="Tag auswählen">
@@ -1207,6 +1211,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
       {statsOpen && data.permissions.manageUsers && <StatsDialog onClose={() => setStatsOpen(false)} />}
       {changesOpen && <ChangesDialog canManage={data.permissions.manageUsers} onClose={() => setChangesOpen(false)} onViewed={markChangesViewed} />}
+      {publicDashboardsOpen && data.permissions.manageUsers && <PublicDashboardAdmin onClose={() => setPublicDashboardsOpen(false)} onUnauthorized={onLoggedOut} />}
       {confirm && <ConfirmDialog title={confirm.title} message={confirm.message} destructive={confirm.destructive} busy={confirmBusy} onCancel={() => setConfirm(null)} onConfirm={() => void runConfirmed()} />}
       {toast && <div className={`toast toast--${toast.tone}`} role="status">{toast.tone === "success" ? <Check size={17} /> : <X size={17} />}{toast.message}</div>}
     </div>

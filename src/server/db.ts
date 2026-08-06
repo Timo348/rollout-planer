@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import type {
   Appointment,
@@ -77,6 +78,45 @@ export async function openDatabase(connectionString: string): Promise<Database> 
       last_seen_change_id BIGINT NOT NULL DEFAULT 0
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public_dashboards (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      subtitle TEXT NOT NULL DEFAULT '',
+      is_default BOOLEAN NOT NULL DEFAULT FALSE,
+      is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      appointment_scope TEXT NOT NULL DEFAULT 'all',
+      trend_days INTEGER NOT NULL DEFAULT 7,
+      show_appointment_names BOOLEAN NOT NULL DEFAULT FALSE,
+      show_assignee_names BOOLEAN NOT NULL DEFAULT FALSE,
+      show_quick_overview BOOLEAN NOT NULL DEFAULT TRUE,
+      show_preparation_status BOOLEAN NOT NULL DEFAULT TRUE,
+      refresh_seconds INTEGER NOT NULL DEFAULT 60,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS public_dashboards_single_default
+    ON public_dashboards (is_default)
+    WHERE is_default = TRUE
+  `);
+  const dashboardCount = await pool.query("SELECT COUNT(*) AS count FROM public_dashboards");
+  if (Number(dashboardCount.rows[0]?.count ?? 0) === 0) {
+    const timestamp = new Date().toISOString();
+    await pool.query(
+      `INSERT INTO public_dashboards (
+        id, name, slug, title, subtitle, is_default, is_enabled,
+        appointment_scope, trend_days, show_appointment_names,
+        show_assignee_names, show_quick_overview, show_preparation_status,
+        refresh_seconds, created_at, updated_at
+      ) VALUES ($1, 'Dashboard 1', 'standard', 'Öffentliche Terminübersicht', '', TRUE, TRUE,
+        'all', 7, FALSE, FALSE, TRUE, TRUE, 60, $2, $2)`,
+      [randomUUID(), timestamp],
+    );
+  }
   return pool;
 }
 
@@ -280,6 +320,28 @@ export async function countAssignmentsByAssignee(
       current.displayName ??= entry.display_name != null ? String(entry.display_name) : null;
       totals.set(id, current);
     }
+  }
+  return totals;
+}
+
+/** Zählt regulär abgeschlossene Termine pro Tag für einen inklusiven Zeitraum. */
+export async function countCompletedAppointmentsByDay(
+  db: Queryable,
+  from: string,
+  to: string,
+): Promise<Map<string, number>> {
+  const tables = await db.query(
+    "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename ~ '^history_[0-9]{4}_[0-9]{2}_[0-9]{2}$'",
+  );
+  const totals = new Map<string, number>();
+  for (const row of tables.rows) {
+    const table = String(row.tablename);
+    const date = table.replace("history_", "").replaceAll("_", "-");
+    if (date < from || date > to) continue;
+    const result = await db.query(
+      `SELECT COUNT(*) AS count FROM "${table}" WHERE reason = 'abgelaufen'`,
+    );
+    totals.set(date, Number(result.rows[0]?.count ?? 0));
   }
   return totals;
 }

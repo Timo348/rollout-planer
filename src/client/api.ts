@@ -8,7 +8,11 @@ import type {
   BootstrapResponse,
   ChangeNotice,
   ChangeNoticeLists,
+  CreatePublicDashboardInput,
+  PublicDashboardResponse,
+  PublicDashboardSettings,
   SessionResponse,
+  UpdatePublicDashboardInput,
 } from "../shared/contracts";
 
 export class ApiError extends Error {
@@ -48,6 +52,12 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  publicDashboard: (slug?: string) =>
+    request<PublicDashboardResponse>(
+      slug
+        ? `/api/public/dashboard/${encodeURIComponent(slug)}`
+        : "/api/public/dashboard",
+    ),
   session: () => request<SessionResponse>("/api/session"),
   bootstrap: () => request<BootstrapResponse>("/api/bootstrap"),
   devLogin: () => request<{ user: BootstrapResponse["currentUser"] }>("/api/auth/dev-login", {
@@ -130,4 +140,20 @@ export const api = {
     }),
   deleteChange: (id: string) =>
     request<void>(`/api/changes/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  getPublicDashboards: () =>
+    request<{ dashboards: PublicDashboardSettings[] }>("/api/admin/public-dashboards"),
+  createPublicDashboard: (payload: CreatePublicDashboardInput) =>
+    request<{ dashboard: PublicDashboardSettings }>("/api/admin/public-dashboards", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updatePublicDashboard: (id: string, payload: UpdatePublicDashboardInput) =>
+    request<{ dashboard: PublicDashboardSettings }>(
+      `/api/admin/public-dashboards/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(payload) },
+    ),
+  deletePublicDashboard: (id: string) =>
+    request<void>(`/api/admin/public-dashboards/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
 };

@@ -362,4 +362,95 @@ describe("StateStore", () => {
     const afterRelogin = await store.getAssignmentStats(null, null);
     expect(afterRelogin.find((entry) => entry.userId === "oidc:alice")?.total).toBe(5);
   });
+
+  it("liefert öffentliche Dashboards datenschutzfreundlich und zählt nur abgelaufene Termine", async () => {
+    let now = new Date("2026-07-15T08:00:00.000Z");
+    const store = makeStore(() => now);
+    await store.initialize();
+    await store.upsertUser(user());
+    const [appointment] = await store.createBatch(
+      "2026-07-15",
+      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde Geheim"] }],
+      "oidc:alice",
+    );
+    await store.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });
+    await store.setAppointmentPrepared(appointment!.id, 2, true);
+    const [deleted] = await store.createBatch(
+      "2026-07-15",
+      [{ startTime: "09:00", endTime: "10:00", names: ["Nicht erledigt"] }],
+      "oidc:alice",
+    );
+    await store.deleteAppointment(deleted!.id, 1);
+
+    const privateView = await store.getPublicDashboard();
+    expect(privateView.appointments[0]).not.toHaveProperty("name");
+    expect(privateView.appointments[0]).not.toHaveProperty("assigneeName");
+    expect(privateView.appointments[0]).toMatchObject({ isAssigned: true, isPrepared: true });
+
+    const [settings] = await store.listPublicDashboards();
+    await store.updatePublicDashboard(settings!.id, {
+      name: settings!.name,
+      title: settings!.title,
+      subtitle: settings!.subtitle,
+      isDefault: true,
+      isEnabled: true,
+      appointmentScope: "all",
+      trendDays: 7,
+      showAppointmentNames: true,
+      showAssigneeNames: true,
+      showQuickOverview: true,
+      showPreparationStatus: true,
+      refreshSeconds: 60,
+    });
+    const publicView = await store.getPublicDashboard();
+    expect(publicView.appointments[0]).toMatchObject({
+      name: "Kunde Geheim",
+      assigneeName: "Alice Beispiel",
+    });
+
+    now = new Date("2026-07-16T08:00:00.000Z");
+    const nextDay = await store.getPublicDashboard();
+    expect(nextDay.trend.find((point) => point.date === "2026-07-15")?.completed).toBe(1);
+    expect(nextDay.quickOverview?.completedInTrend).toBe(1);
+  });
+
+  it("verwaltet mehrere Dashboards mit genau einem geschützten Standard", async () => {
+    const store = makeStore(() => new Date("2026-07-15T08:00:00.000Z"));
+    await store.initialize();
+    const [first] = await store.listPublicDashboards();
+    const second = await store.createPublicDashboard({
+      name: "Empfang",
+      slug: "empfang",
+      title: "Empfangstermine",
+      subtitle: "",
+      isEnabled: true,
+      appointmentScope: "today",
+      trendDays: 30,
+      showAppointmentNames: false,
+      showAssigneeNames: false,
+      showQuickOverview: true,
+      showPreparationStatus: false,
+      refreshSeconds: 30,
+    });
+    expect((await store.listPublicDashboards()).map((entry) => entry.slug)).toEqual(["standard", "empfang"]);
+    await expect(store.deletePublicDashboard(first!.id)).rejects.toThrow("anderes Dashboard");
+
+    await store.updatePublicDashboard(second.id, {
+      name: second.name,
+      title: second.title,
+      subtitle: second.subtitle,
+      isDefault: true,
+      isEnabled: second.isEnabled,
+      appointmentScope: second.appointmentScope,
+      trendDays: second.trendDays,
+      showAppointmentNames: second.showAppointmentNames,
+      showAssigneeNames: second.showAssigneeNames,
+      showQuickOverview: second.showQuickOverview,
+      showPreparationStatus: second.showPreparationStatus,
+      refreshSeconds: second.refreshSeconds,
+    });
+    expect((await store.getPublicDashboard()).dashboard.slug).toBe("empfang");
+    await store.deletePublicDashboard(first!.id);
+    await expect(store.deletePublicDashboard(second.id)).rejects.toThrow("letzte Dashboard");
+  });
 });

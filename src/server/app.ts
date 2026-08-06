@@ -26,6 +26,7 @@ import { sendDailyAgendas, startDailyAgendaScheduler } from "./scheduler.js";
 import {
   ConflictError,
   NotFoundError,
+  StateConflictError,
   StateStore,
   StateValidationError,
 } from "./store.js";
@@ -92,6 +93,31 @@ const changeNoticeSchema = z.object({
     .refine((value) => value.split(/\s+/).filter(Boolean).length <= 50, {
       message: "Eine Änderung darf maximal 50 Wörter enthalten.",
     }),
+});
+
+const publicDashboardSettingsSchema = z.object({
+  name: z.string().trim().min(1, "Bitte einen internen Namen eintragen.").max(80),
+  title: z.string().trim().min(1, "Bitte einen Titel eintragen.").max(100),
+  subtitle: z.string().trim().max(240),
+  isEnabled: z.boolean(),
+  appointmentScope: z.enum(["all", "today", "today_tomorrow"]),
+  trendDays: z.union([z.literal(7), z.literal(30)]),
+  showAppointmentNames: z.boolean(),
+  showAssigneeNames: z.boolean(),
+  showQuickOverview: z.boolean(),
+  showPreparationStatus: z.boolean(),
+  refreshSeconds: z.union([z.literal(0), z.literal(30), z.literal(60), z.literal(120)]),
+});
+const createPublicDashboardSchema = publicDashboardSettingsSchema.extend({
+  slug: z
+    .string()
+    .trim()
+    .min(1, "Bitte einen Kurzlink eintragen.")
+    .max(60)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Der Kurzlink darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten."),
+});
+const updatePublicDashboardSchema = publicDashboardSettingsSchema.extend({
+  isDefault: z.boolean(),
 });
 
 function cookieOptions(config: AppConfig) {
@@ -217,6 +243,24 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
 
   app.get("/health", async () => ({ status: "ok", time: new Date().toISOString() }));
 
+  app.get("/pubic", async (request, reply) =>
+    reply.code(308).header("location", `/public${request.url.slice("/pubic".length)}`).send(),
+  );
+  app.get("/pubic/*", async (request, reply) =>
+    reply.code(308).header("location", `/public${request.url.slice("/pubic".length)}`).send(),
+  );
+
+  app.get("/api/public/dashboard", async (_request, reply) => {
+    reply.header("cache-control", "no-store");
+    return store.getPublicDashboard();
+  });
+
+  app.get("/api/public/dashboard/:slug", async (request, reply) => {
+    const slug = z.string().min(1).max(60).parse((request.params as { slug?: string }).slug);
+    reply.header("cache-control", "no-store");
+    return store.getPublicDashboard(slug);
+  });
+
   app.get("/api/session", async (request) => {
     const principal = await readActivePrincipal(request);
     return {
@@ -315,6 +359,47 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     permissions: request.currentPrincipal!.permissions,
     guideUrl: config.guideUrl,
   }));
+
+  app.get(
+    "/api/admin/public-dashboards",
+    { preHandler: [authenticate, requireUserAdmin] },
+    async () => ({ dashboards: await store.listPublicDashboards() }),
+  );
+
+  app.post(
+    "/api/admin/public-dashboards",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request, reply) => {
+      const dashboard = await store.createPublicDashboard(
+        createPublicDashboardSchema.parse(request.body),
+      );
+      return reply.code(201).send({ dashboard });
+    },
+  );
+
+  app.put(
+    "/api/admin/public-dashboards/:id",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request) => {
+      const id = z.string().min(1).parse((request.params as { id?: string }).id);
+      return {
+        dashboard: await store.updatePublicDashboard(
+          id,
+          updatePublicDashboardSchema.parse(request.body),
+        ),
+      };
+    },
+  );
+
+  app.delete(
+    "/api/admin/public-dashboards/:id",
+    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    async (request, reply) => {
+      const id = z.string().min(1).parse((request.params as { id?: string }).id);
+      await store.deletePublicDashboard(id);
+      return reply.code(204).send();
+    },
+  );
 
   app.delete(
     "/api/users/:id",
@@ -595,6 +680,9 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     }
     if (error instanceof StateValidationError) {
       return reply.code(400).send({ error: "validation", message: error.message });
+    }
+    if (error instanceof StateConflictError) {
+      return reply.code(409).send({ error: "conflict", message: error.message });
     }
     app.log.error(error);
     return reply.code(500).send({

@@ -25,6 +25,7 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - Statistik für Admins (Authentik-Gruppe `rollout-planner-admin`) im Arbeitsbereich: durchgeführte Termine pro Person für die letzten 14 Tage, den aktuellen Monat oder insgesamt, mit manueller Plus/Minus-Korrektur; die Zählung aktualisiert sich automatisch mit der täglichen Archivierung
 - Änderungsmodul für alle Benutzer: Admins veröffentlichen Meldungen mit bis zu 50 Wörtern, die nach 21 Tagen automatisch von „Aktuelles“ nach „Allgemeines“ wechseln; neue Meldungen werden benutzerspezifisch mit `!` markiert
 - optionaler Punkt „Anleitung“ in der linken Navigation; das Ziel wird mit `GUIDE_URL` in `.env`/Compose konfiguriert und in einem neuen Tab geöffnet
+- mehrere frei benennbare, öffentliche Termin-Dashboards unter `/public/<kurzlink>` mit eigener Datenschutz-, Zeitraum-, Trend- und Aktualisierungskonfiguration; `/public` zeigt das festgelegte Standard-Dashboard
 - tägliche Termin-E-Mail pro Benutzer individuell abbestellbar (Umschalter im Profilmenü)
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
@@ -117,6 +118,7 @@ Gespeichert werden:
 - Termine für die fünf angezeigten Planungstage (Tabelle `appointments`)
 - Benutzer, die sich mindestens einmal erfolgreich angemeldet haben (Tabelle `users`)
 - veröffentlichte Änderungsmeldungen und der benutzerspezifische Lesestatus (Tabellen `change_notices` und `change_notice_reads`)
+- Konfigurationen der öffentlichen Termin-Dashboards (Tabelle `public_dashboards`)
 - Profilbilder im Unterordner `avatars` des Docker-Volumes `rollout-planer-data` (`/app/data`)
 
 ### Historie pro Tag

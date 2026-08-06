@@ -3,6 +3,7 @@ import { ArrowRight, CalendarDays, LoaderCircle, ShieldCheck } from "lucide-reac
 import type { SessionResponse } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { Dashboard } from "./Dashboard";
+import { PublicDashboardPage } from "./PublicDashboard";
 
 function LoadingScreen() {
   return (
@@ -160,7 +161,7 @@ function LoginScreen({
   );
 }
 
-export function App() {
+function InternalApp() {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -211,4 +212,12 @@ export function App() {
       }
     />
   );
+}
+
+export function App() {
+  const publicRoute = window.location.pathname.match(/^\/public(?:\/([a-z0-9-]+))?\/?$/);
+  if (publicRoute) {
+    return <PublicDashboardPage slug={publicRoute[1]} />;
+  }
+  return <InternalApp />;
 }

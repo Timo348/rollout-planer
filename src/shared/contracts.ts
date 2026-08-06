@@ -95,6 +95,84 @@ export interface AppPermissions {
   manageUsers: boolean;
 }
 
+export type PublicDashboardAppointmentScope = "all" | "today" | "today_tomorrow";
+export type PublicDashboardTrendDays = 7 | 30;
+export type PublicDashboardRefreshSeconds = 0 | 30 | 60 | 120;
+
+export interface PublicDashboardSettings {
+  id: string;
+  name: string;
+  slug: string;
+  title: string;
+  subtitle: string;
+  isDefault: boolean;
+  isEnabled: boolean;
+  appointmentScope: PublicDashboardAppointmentScope;
+  trendDays: PublicDashboardTrendDays;
+  showAppointmentNames: boolean;
+  showAssigneeNames: boolean;
+  showQuickOverview: boolean;
+  showPreparationStatus: boolean;
+  refreshSeconds: PublicDashboardRefreshSeconds;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreatePublicDashboardInput = Omit<
+  PublicDashboardSettings,
+  "id" | "isDefault" | "createdAt" | "updatedAt"
+>;
+
+export type UpdatePublicDashboardInput = Omit<
+  PublicDashboardSettings,
+  "id" | "slug" | "createdAt" | "updatedAt"
+>;
+
+export interface PublicAppointment {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  name?: string;
+  assigneeName?: string;
+  isAssigned: boolean;
+  isPrepared?: boolean;
+}
+
+export interface PublicDashboardTrendPoint {
+  date: string;
+  completed: number;
+}
+
+export interface PublicDashboardQuickOverview {
+  todayPlanned: number;
+  todayAssigned: number;
+  todayUnassigned: number;
+  todayPrepared: number;
+  completedInTrend: number;
+  tomorrowPlanned?: number;
+}
+
+export interface PublicDashboardResponse {
+  dashboard: Pick<
+    PublicDashboardSettings,
+    | "slug"
+    | "title"
+    | "subtitle"
+    | "appointmentScope"
+    | "trendDays"
+    | "showQuickOverview"
+    | "showPreparationStatus"
+    | "refreshSeconds"
+  >;
+  dates: ScheduleDates;
+  visibleDates: string[];
+  appointments: PublicAppointment[];
+  trend: PublicDashboardTrendPoint[];
+  quickOverview?: PublicDashboardQuickOverview;
+  generatedAt: string;
+}
+
 export interface BootstrapResponse {
   currentUser: AppUser;
   users: AppUser[];
