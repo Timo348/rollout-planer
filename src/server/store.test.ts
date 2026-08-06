@@ -388,7 +388,7 @@ describe("StateStore", () => {
     expect(privateView.appointments[0]).toMatchObject({ isAssigned: true, isPrepared: true });
 
     const [settings] = await store.listPublicDashboards();
-    await store.updatePublicDashboard(settings!.id, {
+    const publicSettings = {
       name: settings!.name,
       title: settings!.title,
       subtitle: settings!.subtitle,
@@ -399,10 +399,15 @@ describe("StateStore", () => {
       showAppointmentNames: true,
       showAssigneeNames: true,
       showQuickOverview: true,
+      showPodium: true,
       showPreparationStatus: true,
       refreshSeconds: 60,
-    });
+      defaultTheme: "dark",
+      zoomPercent: 250,
+    } as const;
+    await store.updatePublicDashboard(settings!.id, publicSettings);
     const publicView = await store.getPublicDashboard();
+    expect(publicView.dashboard).toMatchObject({ defaultTheme: "dark", zoomPercent: 250 });
     expect(publicView.appointments[0]).toMatchObject({
       name: "Kunde Geheim",
       assigneeName: "Alice Beispiel",
@@ -412,6 +417,13 @@ describe("StateStore", () => {
     const nextDay = await store.getPublicDashboard();
     expect(nextDay.trend.find((point) => point.date === "2026-07-15")?.completed).toBe(1);
     expect(nextDay.quickOverview?.completedInTrend).toBe(1);
+    expect(nextDay.podium).toEqual([{ rank: 1, completed: 1, displayName: "Alice Beispiel" }]);
+
+    await store.updatePublicDashboard(settings!.id, { ...publicSettings, showAssigneeNames: false });
+    expect((await store.getPublicDashboard()).podium).toEqual([{ rank: 1, completed: 1 }]);
+
+    now = new Date("2026-07-30T08:00:00.000Z");
+    expect((await store.getPublicDashboard()).podium).toEqual([]);
   });
 
   it("verwaltet mehrere Dashboards mit genau einem geschützten Standard", async () => {
@@ -429,8 +441,11 @@ describe("StateStore", () => {
       showAppointmentNames: false,
       showAssigneeNames: false,
       showQuickOverview: true,
+      showPodium: false,
       showPreparationStatus: false,
       refreshSeconds: 30,
+      defaultTheme: "dark",
+      zoomPercent: 150,
     });
     expect((await store.listPublicDashboards()).map((entry) => entry.slug)).toEqual(["standard", "empfang"]);
     await expect(store.deletePublicDashboard(first!.id)).rejects.toThrow("anderes Dashboard");
@@ -446,8 +461,11 @@ describe("StateStore", () => {
       showAppointmentNames: second.showAppointmentNames,
       showAssigneeNames: second.showAssigneeNames,
       showQuickOverview: second.showQuickOverview,
+      showPodium: second.showPodium,
       showPreparationStatus: second.showPreparationStatus,
       refreshSeconds: second.refreshSeconds,
+      defaultTheme: second.defaultTheme,
+      zoomPercent: second.zoomPercent,
     });
     expect((await store.getPublicDashboard()).dashboard.slug).toBe("empfang");
     await store.deletePublicDashboard(first!.id);

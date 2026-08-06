@@ -154,8 +154,11 @@ function mapPublicDashboard(row: Record<string, unknown>): PublicDashboardSettin
     showAppointmentNames: Boolean(row.show_appointment_names),
     showAssigneeNames: Boolean(row.show_assignee_names),
     showQuickOverview: Boolean(row.show_quick_overview),
+    showPodium: Boolean(row.show_podium),
     showPreparationStatus: Boolean(row.show_preparation_status),
     refreshSeconds: Number(row.refresh_seconds) as PublicDashboardSettings["refreshSeconds"],
+    defaultTheme: String(row.default_theme) as PublicDashboardSettings["defaultTheme"],
+    zoomPercent: Number(row.zoom_percent) as PublicDashboardSettings["zoomPercent"],
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
@@ -367,9 +370,9 @@ export class StateStore {
           `INSERT INTO public_dashboards (
             id, name, slug, title, subtitle, is_default, is_enabled,
             appointment_scope, trend_days, show_appointment_names,
-            show_assignee_names, show_quick_overview, show_preparation_status,
-            refresh_seconds, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+            show_assignee_names, show_quick_overview, show_podium, show_preparation_status,
+            refresh_seconds, default_theme, zoom_percent, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
           RETURNING *`,
           [
             id,
@@ -383,8 +386,11 @@ export class StateStore {
             input.showAppointmentNames,
             input.showAssigneeNames,
             input.showQuickOverview,
+            input.showPodium,
             input.showPreparationStatus,
             input.refreshSeconds,
+            input.defaultTheme,
+            input.zoomPercent,
             timestamp,
           ],
         );
@@ -424,8 +430,9 @@ export class StateStore {
             name = $2, title = $3, subtitle = $4, is_default = $5,
             is_enabled = $6, appointment_scope = $7, trend_days = $8,
             show_appointment_names = $9, show_assignee_names = $10,
-            show_quick_overview = $11, show_preparation_status = $12,
-            refresh_seconds = $13, updated_at = $14
+            show_quick_overview = $11, show_podium = $12,
+            show_preparation_status = $13, refresh_seconds = $14,
+            default_theme = $15, zoom_percent = $16, updated_at = $17
           WHERE id = $1
           RETURNING *`,
           [
@@ -440,8 +447,11 @@ export class StateStore {
             input.showAppointmentNames,
             input.showAssigneeNames,
             input.showQuickOverview,
+            input.showPodium,
             input.showPreparationStatus,
             input.refreshSeconds,
+            input.defaultTheme,
+            input.zoomPercent,
             this.now().toISOString(),
           ],
         );
@@ -537,6 +547,18 @@ export class StateStore {
               : {}),
           }
         : undefined;
+      const podium = settings.showPodium
+        ? [...(await countAssignmentsByAssignee(this.database(), addDays(today, -13), today)).entries()]
+            .sort((a, b) => b[1].count - a[1].count || (a[1].displayName ?? a[0]).localeCompare(b[1].displayName ?? b[0], "de"))
+            .slice(0, 3)
+            .map(([userId, entry], index) => ({
+              rank: (index + 1) as 1 | 2 | 3,
+              completed: entry.count,
+              ...(settings.showAssigneeNames
+                ? { displayName: users.get(userId) ?? entry.displayName ?? "Nicht verfügbar" }
+                : {}),
+            }))
+        : undefined;
 
       return {
         dashboard: {
@@ -546,14 +568,18 @@ export class StateStore {
           appointmentScope: settings.appointmentScope,
           trendDays: settings.trendDays,
           showQuickOverview: settings.showQuickOverview,
+          showPodium: settings.showPodium,
           showPreparationStatus: settings.showPreparationStatus,
           refreshSeconds: settings.refreshSeconds,
+          defaultTheme: settings.defaultTheme,
+          zoomPercent: settings.zoomPercent,
         },
         dates,
         visibleDates,
         appointments,
         trend,
         ...(quickOverview ? { quickOverview } : {}),
+        ...(podium ? { podium } : {}),
         generatedAt: this.now().toISOString(),
       };
     });

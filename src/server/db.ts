@@ -92,11 +92,26 @@ export async function openDatabase(connectionString: string): Promise<Database> 
       show_appointment_names BOOLEAN NOT NULL DEFAULT FALSE,
       show_assignee_names BOOLEAN NOT NULL DEFAULT FALSE,
       show_quick_overview BOOLEAN NOT NULL DEFAULT TRUE,
+      show_podium BOOLEAN NOT NULL DEFAULT FALSE,
       show_preparation_status BOOLEAN NOT NULL DEFAULT TRUE,
       refresh_seconds INTEGER NOT NULL DEFAULT 60,
+      default_theme TEXT NOT NULL DEFAULT 'light',
+      zoom_percent INTEGER NOT NULL DEFAULT 100,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
+  `);
+  await pool.query(`
+    ALTER TABLE public_dashboards
+    ADD COLUMN IF NOT EXISTS default_theme TEXT NOT NULL DEFAULT 'light'
+  `);
+  await pool.query(`
+    ALTER TABLE public_dashboards
+    ADD COLUMN IF NOT EXISTS zoom_percent INTEGER NOT NULL DEFAULT 100
+  `);
+  await pool.query(`
+    ALTER TABLE public_dashboards
+    ADD COLUMN IF NOT EXISTS show_podium BOOLEAN NOT NULL DEFAULT FALSE
   `);
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS public_dashboards_single_default
@@ -110,10 +125,10 @@ export async function openDatabase(connectionString: string): Promise<Database> 
       `INSERT INTO public_dashboards (
         id, name, slug, title, subtitle, is_default, is_enabled,
         appointment_scope, trend_days, show_appointment_names,
-        show_assignee_names, show_quick_overview, show_preparation_status,
-        refresh_seconds, created_at, updated_at
+        show_assignee_names, show_quick_overview, show_podium, show_preparation_status,
+        refresh_seconds, default_theme, zoom_percent, created_at, updated_at
       ) VALUES ($1, 'Dashboard 1', 'standard', 'Öffentliche Terminübersicht', '', TRUE, TRUE,
-        'all', 7, FALSE, FALSE, TRUE, TRUE, 60, $2, $2)`,
+        'all', 7, FALSE, FALSE, TRUE, FALSE, TRUE, 60, 'light', 100, $2, $2)`,
       [randomUUID(), timestamp],
     );
   }

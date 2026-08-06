@@ -45,8 +45,11 @@ function newDraft(index: number): DashboardDraft {
     showAppointmentNames: false,
     showAssigneeNames: false,
     showQuickOverview: true,
+    showPodium: false,
     showPreparationStatus: true,
     refreshSeconds: 60,
+    defaultTheme: "light",
+    zoomPercent: 100,
   };
 }
 
@@ -225,6 +228,8 @@ export function PublicDashboardAdmin({
                     <label className="field">Terminansicht<select value={draft.appointmentScope} onChange={(event) => update("appointmentScope", event.target.value as DashboardDraft["appointmentScope"])}><option value="all">Alle Planungstage</option><option value="today">Nur heute</option><option value="today_tomorrow">Heute und morgen</option></select></label>
                     <label className="field">Tagestrend<select value={draft.trendDays} onChange={(event) => update("trendDays", Number(event.target.value) as DashboardDraft["trendDays"])}><option value={7}>7 Tage</option><option value={30}>30 Tage</option></select></label>
                     <label className="field">Aktualisierung<select value={draft.refreshSeconds} onChange={(event) => update("refreshSeconds", Number(event.target.value) as DashboardDraft["refreshSeconds"])}><option value={0}>Aus</option><option value={30}>30 Sekunden</option><option value={60}>60 Sekunden</option><option value={120}>120 Sekunden</option></select></label>
+                    <label className="field">Standardmodus<select value={draft.defaultTheme} onChange={(event) => update("defaultTheme", event.target.value as DashboardDraft["defaultTheme"])}><option value="light">Hell</option><option value="dark">Dunkel</option></select></label>
+                    <label className="field">Zoom<select value={draft.zoomPercent} onChange={(event) => update("zoomPercent", Number(event.target.value) as DashboardDraft["zoomPercent"])}>{[50, 75, 100, 125, 150, 175, 200, 225, 250].map((value) => <option value={value} key={value}>{value} %</option>)}</select></label>
                   </div>
 
                   <div className="dashboard-switches">
@@ -232,6 +237,7 @@ export function PublicDashboardAdmin({
                     <label><input type="checkbox" checked={draft.showAppointmentNames} onChange={(event) => update("showAppointmentNames", event.target.checked)} /><span>Termin-/Kundennamen zeigen<small>Standardmäßig aus Datenschutzgründen verborgen.</small></span></label>
                     <label><input type="checkbox" checked={draft.showAssigneeNames} onChange={(event) => update("showAssigneeNames", event.target.checked)} /><span>Mitarbeiternamen zeigen<small>Sonst wird nur der Zuweisungsstatus angezeigt.</small></span></label>
                     <label><input type="checkbox" checked={draft.showQuickOverview} onChange={(event) => update("showQuickOverview", event.target.checked)} /><span>Quick-Übersicht zeigen<small>Kennzahlen für heute und den Trendzeitraum.</small></span></label>
+                    <label><input type="checkbox" checked={draft.showPodium} onChange={(event) => update("showPodium", event.target.checked)} /><span>Podium zeigen<small>Top 3 der letzten 14 Tage; Namen folgen der Datenschutzeinstellung.</small></span></label>
                     <label><input type="checkbox" checked={draft.showPreparationStatus} onChange={(event) => update("showPreparationStatus", event.target.checked)} /><span>Vorbereitungsstatus zeigen<small>Zeigt vorbereitet beziehungsweise offen.</small></span></label>
                     {!creating && <label><input type="checkbox" checked={draft.isDefault} disabled={draft.isDefault} onChange={(event) => update("isDefault", event.target.checked)} /><span>Als Standard verwenden<small>Dieses Dashboard erscheint direkt unter /public.</small></span></label>}
                   </div>

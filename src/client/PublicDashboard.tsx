@@ -6,13 +6,26 @@ import {
   Moon,
   RefreshCw,
   Sun,
+  Trophy,
   UserRoundCheck,
   UserRoundX,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import type { PublicDashboardResponse } from "../shared/contracts";
+import type { PublicDashboardDefaultTheme, PublicDashboardResponse } from "../shared/contracts";
 import { api, ApiError } from "./api";
-import { useTheme } from "./theme";
+
+function publicThemeStorageKey(slug: string): string {
+  return `rollout-public-theme:${slug}`;
+}
+
+function storedPublicTheme(slug: string): PublicDashboardDefaultTheme | null {
+  try {
+    const value = window.localStorage.getItem(publicThemeStorageKey(slug));
+    return value === "light" || value === "dark" ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 function formatDate(date: string, long = false): string {
   return new Intl.DateTimeFormat("de-DE", {
@@ -45,7 +58,7 @@ export function PublicDashboardPage({ slug }: { slug?: string }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [theme, toggleTheme] = useTheme();
+  const [theme, setTheme] = useState<PublicDashboardDefaultTheme>("light");
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -85,6 +98,27 @@ export function PublicDashboardPage({ slug }: { slug?: string }) {
     return () => { document.title = "Rollout Planer"; };
   }, [data?.dashboard.title]);
 
+  useEffect(() => {
+    if (!data) return;
+    const nextTheme = storedPublicTheme(data.dashboard.slug) ?? data.dashboard.defaultTheme;
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+  }, [data?.dashboard.defaultTheme, data?.dashboard.slug]);
+
+  const toggleTheme = useCallback(() => {
+    if (!data) return;
+    setTheme((current) => {
+      const nextTheme = current === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = nextTheme;
+      try {
+        window.localStorage.setItem(publicThemeStorageKey(data.dashboard.slug), nextTheme);
+      } catch {
+        // Das Dashboard bleibt auch ohne verfügbaren Browser-Speicher bedienbar.
+      }
+      return nextTheme;
+    });
+  }, [data]);
+
   const appointmentsByDate = useMemo(() => {
     if (!data) return new Map<string, PublicDashboardResponse["appointments"]>();
     const result = new Map<string, PublicDashboardResponse["appointments"]>();
@@ -115,9 +149,14 @@ export function PublicDashboardPage({ slug }: { slug?: string }) {
 
   const maximumTrend = Math.max(1, ...data.trend.map((point) => point.completed));
   const quick = data.quickOverview;
+  const zoomFactor = data.dashboard.zoomPercent / 100;
+  const zoomStyle = {
+    zoom: zoomFactor,
+    "--public-tv-height": `${100 / zoomFactor}dvh`,
+  } as CSSProperties;
 
   return (
-    <div className="public-dashboard">
+    <div className="public-dashboard" data-zoom={data.dashboard.zoomPercent} style={zoomStyle}>
       <header className="public-header">
         <Brand />
         <div className="public-header__actions">
@@ -125,7 +164,7 @@ export function PublicDashboardPage({ slug }: { slug?: string }) {
           <button className="icon-button" type="button" disabled={refreshing} onClick={() => void load(true)} aria-label="Aktualisieren" title="Aktualisieren">
             <RefreshCw className={refreshing ? "spin" : ""} size={17} />
           </button>
-          <button className="icon-button" type="button" onClick={toggleTheme} aria-label="Farbschema wechseln" title="Farbschema wechseln">
+          <button className="icon-button" type="button" onClick={toggleTheme} aria-label={theme === "dark" ? "Hellen Modus aktivieren" : "Dunklen Modus aktivieren"} title="Farbschema wechseln">
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
         </div>
@@ -184,21 +223,42 @@ export function PublicDashboardPage({ slug }: { slug?: string }) {
             </div>
           </section>
 
-          <section className="public-panel public-trend" aria-labelledby="public-trend-title">
-            <div className="public-panel__heading">
-              <div><p className="eyebrow">Letzte {data.dashboard.trendDays} Tage</p><h2 id="public-trend-title">Tagestrend</h2></div>
-              <span>Erledigte Termine</span>
-            </div>
-            <div className="trend-chart" role="img" aria-label={`Erledigte Termine der letzten ${data.dashboard.trendDays} Tage`}>
-              {data.trend.map((point) => (
-                <div className="trend-bar" key={point.date} title={`${formatDate(point.date)}: ${point.completed}`}>
-                  <span>{point.completed}</span>
-                  <i style={{ "--trend-height": `${Math.max(point.completed ? 8 : 2, (point.completed / maximumTrend) * 100)}%` } as CSSProperties} />
-                  <small>{data.dashboard.trendDays === 7 || point.date.endsWith("-01") ? formatDate(point.date) : point.date.slice(-2)}</small>
+          <div className={data.dashboard.showPodium ? "public-side public-side--with-podium" : "public-side"}>
+            {data.dashboard.showPodium && (
+              <section className="public-panel public-podium" aria-labelledby="public-podium-title">
+                <div className="public-panel__heading">
+                  <div><p className="eyebrow">Letzte 14 Tage</p><h2 id="public-podium-title">Podium</h2></div>
+                  <span>Top 3 Mitarbeiter</span>
                 </div>
-              ))}
-            </div>
-          </section>
+                {(data.podium?.length ?? 0) > 0 ? (
+                  <div className="public-podium__list">
+                    {data.podium?.map((entry) => (
+                      <article key={entry.rank}>
+                        <span className={`public-podium__rank is-rank-${entry.rank}`}><Trophy size={15} />{entry.rank}</span>
+                        <div><strong>{entry.displayName ?? `Platz ${entry.rank}`}</strong><small>{entry.completed} {entry.completed === 1 ? "Termin" : "Termine"}</small></div>
+                      </article>
+                    ))}
+                  </div>
+                ) : <p className="public-podium__empty">Noch keine erledigten Termine</p>}
+              </section>
+            )}
+
+            <section className="public-panel public-trend" aria-labelledby="public-trend-title">
+              <div className="public-panel__heading">
+                <div><p className="eyebrow">Letzte {data.dashboard.trendDays} Tage</p><h2 id="public-trend-title">Tagestrend</h2></div>
+                <span>Erledigte Termine</span>
+              </div>
+              <div className="trend-chart" role="img" aria-label={`Erledigte Termine der letzten ${data.dashboard.trendDays} Tage`}>
+                {data.trend.map((point) => (
+                  <div className="trend-bar" key={point.date} title={`${formatDate(point.date)}: ${point.completed}`}>
+                    <span>{point.completed}</span>
+                    <i style={{ "--trend-height": `${Math.max(point.completed ? 8 : 2, (point.completed / maximumTrend) * 100)}%` } as CSSProperties} />
+                    <small>{data.dashboard.trendDays === 7 || point.date.endsWith("-01") ? formatDate(point.date) : point.date.slice(-2)}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
       </main>
     </div>

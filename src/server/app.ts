@@ -105,8 +105,14 @@ const publicDashboardSettingsSchema = z.object({
   showAppointmentNames: z.boolean(),
   showAssigneeNames: z.boolean(),
   showQuickOverview: z.boolean(),
+  showPodium: z.boolean(),
   showPreparationStatus: z.boolean(),
   refreshSeconds: z.union([z.literal(0), z.literal(30), z.literal(60), z.literal(120)]),
+  defaultTheme: z.enum(["light", "dark"]),
+  zoomPercent: z.union([
+    z.literal(50), z.literal(75), z.literal(100), z.literal(125), z.literal(150),
+    z.literal(175), z.literal(200), z.literal(225), z.literal(250),
+  ]),
 });
 const createPublicDashboardSchema = publicDashboardSettingsSchema.extend({
   slug: z

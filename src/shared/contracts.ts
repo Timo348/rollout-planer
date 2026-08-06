@@ -98,6 +98,8 @@ export interface AppPermissions {
 export type PublicDashboardAppointmentScope = "all" | "today" | "today_tomorrow";
 export type PublicDashboardTrendDays = 7 | 30;
 export type PublicDashboardRefreshSeconds = 0 | 30 | 60 | 120;
+export type PublicDashboardDefaultTheme = "light" | "dark";
+export type PublicDashboardZoomPercent = 50 | 75 | 100 | 125 | 150 | 175 | 200 | 225 | 250;
 
 export interface PublicDashboardSettings {
   id: string;
@@ -112,8 +114,11 @@ export interface PublicDashboardSettings {
   showAppointmentNames: boolean;
   showAssigneeNames: boolean;
   showQuickOverview: boolean;
+  showPodium: boolean;
   showPreparationStatus: boolean;
   refreshSeconds: PublicDashboardRefreshSeconds;
+  defaultTheme: PublicDashboardDefaultTheme;
+  zoomPercent: PublicDashboardZoomPercent;
   createdAt: string;
   updatedAt: string;
 }
@@ -153,6 +158,12 @@ export interface PublicDashboardQuickOverview {
   tomorrowPlanned?: number;
 }
 
+export interface PublicDashboardPodiumEntry {
+  rank: 1 | 2 | 3;
+  completed: number;
+  displayName?: string;
+}
+
 export interface PublicDashboardResponse {
   dashboard: Pick<
     PublicDashboardSettings,
@@ -162,14 +173,18 @@ export interface PublicDashboardResponse {
     | "appointmentScope"
     | "trendDays"
     | "showQuickOverview"
+    | "showPodium"
     | "showPreparationStatus"
     | "refreshSeconds"
+    | "defaultTheme"
+    | "zoomPercent"
   >;
   dates: ScheduleDates;
   visibleDates: string[];
   appointments: PublicAppointment[];
   trend: PublicDashboardTrendPoint[];
   quickOverview?: PublicDashboardQuickOverview;
+  podium?: PublicDashboardPodiumEntry[];
   generatedAt: string;
 }
 

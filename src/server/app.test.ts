@@ -690,8 +690,11 @@ describe("Rollout API", () => {
       showAppointmentNames: false,
       showAssigneeNames: false,
       showQuickOverview: true,
+      showPodium: true,
       showPreparationStatus: false,
       refreshSeconds: 30 as const,
+      defaultTheme: "dark" as const,
+      zoomPercent: 250 as const,
     };
     const created = await app.inject({
       method: "POST",
@@ -701,7 +704,22 @@ describe("Rollout API", () => {
     });
     expect(created.statusCode).toBe(201);
     const dashboard = created.json<{ dashboard: { id: string; slug: string } }>().dashboard;
-    expect((await app.inject({ method: "GET", url: "/api/public/dashboard/empfang" })).statusCode).toBe(200);
+    const publicDashboard = await app.inject({ method: "GET", url: "/api/public/dashboard/empfang" });
+    expect(publicDashboard.statusCode).toBe(200);
+    expect(publicDashboard.json<{ dashboard: { defaultTheme: string; zoomPercent: number; showPodium: boolean }; podium: unknown[] }>().dashboard).toMatchObject({
+      defaultTheme: "dark",
+      zoomPercent: 250,
+      showPodium: true,
+    });
+    expect(publicDashboard.json<{ podium: unknown[] }>().podium).toEqual([]);
+
+    const invalidZoom = await app.inject({
+      method: "POST",
+      url: "/api/admin/public-dashboards",
+      headers: { cookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { ...payload, slug: "ungueltig", zoomPercent: 110 },
+    });
+    expect(invalidZoom.statusCode).toBe(400);
 
     const duplicate = await app.inject({
       method: "POST",
