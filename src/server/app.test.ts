@@ -712,6 +712,10 @@ describe("Rollout API", () => {
       showPodium: true,
     });
     expect(publicDashboard.json<{ podium: unknown[] }>().podium).toEqual([]);
+    expect((await app.inject({
+      method: "GET",
+      url: "/api/public/dashboard/empfang/podium/1/avatar",
+    })).statusCode).toBe(404);
 
     const invalidZoom = await app.inject({
       method: "POST",

@@ -261,6 +261,20 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     return store.getPublicDashboard();
   });
 
+  app.get("/api/public/dashboard/:slug/podium/:rank/avatar", async (request, reply) => {
+    const params = z.object({
+      slug: z.string().min(1).max(60),
+      rank: z.coerce.number().pipe(z.union([z.literal(1), z.literal(2), z.literal(3)])),
+    }).parse(request.params);
+    const avatar = await store.getPublicPodiumAvatar(params.slug, params.rank);
+    const image = await avatars.read(avatar.key);
+    if (!image) throw new NotFoundError("Das Profilbild ist nicht verfügbar.");
+    return reply
+      .header("content-type", avatar.mimeType)
+      .header("cache-control", "public, max-age=31536000, immutable")
+      .send(image);
+  });
+
   app.get("/api/public/dashboard/:slug", async (request, reply) => {
     const slug = z.string().min(1).max(60).parse((request.params as { slug?: string }).slug);
     reply.header("cache-control", "no-store");

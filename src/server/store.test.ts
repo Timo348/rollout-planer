@@ -368,6 +368,11 @@ describe("StateStore", () => {
     const store = makeStore(() => now);
     await store.initialize();
     await store.upsertUser(user());
+    await store.setUserAvatar("oidc:alice", {
+      key: "11111111-1111-4111-8111-111111111111.img",
+      mimeType: "image/png",
+      updatedAt: "2026-07-15T07:30:00.000Z",
+    });
     const [appointment] = await store.createBatch(
       "2026-07-15",
       [{ startTime: "08:00", endTime: "09:00", names: ["Kunde Geheim"] }],
@@ -417,13 +422,21 @@ describe("StateStore", () => {
     const nextDay = await store.getPublicDashboard();
     expect(nextDay.trend.find((point) => point.date === "2026-07-15")?.completed).toBe(1);
     expect(nextDay.quickOverview?.completedInTrend).toBe(1);
-    expect(nextDay.podium).toEqual([{ rank: 1, completed: 1, displayName: "Alice Beispiel" }]);
+    expect(nextDay.podium).toEqual([{
+      rank: 1,
+      avatarUrl: "/api/public/dashboard/standard/podium/1/avatar?v=2026-07-15T07%3A30%3A00.000Z",
+    }]);
+    expect(await store.getPublicPodiumAvatar("standard", 1)).toMatchObject({
+      key: "11111111-1111-4111-8111-111111111111.img",
+      mimeType: "image/png",
+    });
 
     await store.updatePublicDashboard(settings!.id, { ...publicSettings, showAssigneeNames: false });
-    expect((await store.getPublicDashboard()).podium).toEqual([{ rank: 1, completed: 1 }]);
+    expect((await store.getPublicDashboard()).podium).toEqual(nextDay.podium);
 
     now = new Date("2026-07-30T08:00:00.000Z");
     expect((await store.getPublicDashboard()).podium).toEqual([]);
+    await expect(store.getPublicPodiumAvatar("standard", 1)).rejects.toThrow("nicht verfügbar");
   });
 
   it("verwaltet mehrere Dashboards mit genau einem geschützten Standard", async () => {

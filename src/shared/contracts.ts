@@ -160,8 +160,7 @@ export interface PublicDashboardQuickOverview {
 
 export interface PublicDashboardPodiumEntry {
   rank: 1 | 2 | 3;
-  completed: number;
-  displayName?: string;
+  avatarUrl?: string;
 }
 
 export interface PublicDashboardResponse {

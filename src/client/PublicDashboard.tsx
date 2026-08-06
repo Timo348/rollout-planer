@@ -1,12 +1,12 @@
 import {
   CalendarDays,
   CheckCircle2,
+  CircleUserRound,
   Clock3,
   LoaderCircle,
   Moon,
   RefreshCw,
   Sun,
-  Trophy,
   UserRoundCheck,
   UserRoundX,
 } from "lucide-react";
@@ -231,11 +231,12 @@ export function PublicDashboardPage({ slug }: { slug?: string }) {
                   <span>Top 3 Mitarbeiter</span>
                 </div>
                 {(data.podium?.length ?? 0) > 0 ? (
-                  <div className="public-podium__list">
+                  <div className="public-podium__stage">
                     {data.podium?.map((entry) => (
-                      <article key={entry.rank}>
-                        <span className={`public-podium__rank is-rank-${entry.rank}`}><Trophy size={15} />{entry.rank}</span>
-                        <div><strong>{entry.displayName ?? `Platz ${entry.rank}`}</strong><small>{entry.completed} {entry.completed === 1 ? "Termin" : "Termine"}</small></div>
+                      <article className={`is-rank-${entry.rank}`} key={entry.rank} aria-label={`${entry.rank}. Platz`}>
+                        <span className="public-podium__avatar" aria-hidden="true">
+                          {entry.avatarUrl ? <img src={entry.avatarUrl} alt="" /> : <CircleUserRound />}
+                        </span>
                       </article>
                     ))}
                   </div>

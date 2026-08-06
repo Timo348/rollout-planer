@@ -164,6 +164,16 @@ function mapPublicDashboard(row: Record<string, unknown>): PublicDashboardSettin
   };
 }
 
+async function publicPodiumLeaders(
+  db: Database,
+  today: string,
+): Promise<Array<{ userId: string; rank: 1 | 2 | 3 }>> {
+  return [...(await countAssignmentsByAssignee(db, addDays(today, -13), today)).entries()]
+    .sort((a, b) => b[1].count - a[1].count || (a[1].displayName ?? a[0]).localeCompare(b[1].displayName ?? b[0], "de"))
+    .slice(0, 3)
+    .map(([userId], index) => ({ userId, rank: (index + 1) as 1 | 2 | 3 }));
+}
+
 function emptyState(): StoredState {
   return { schemaVersion: 4, users: [], appointments: [] };
 }
@@ -548,16 +558,15 @@ export class StateStore {
           }
         : undefined;
       const podium = settings.showPodium
-        ? [...(await countAssignmentsByAssignee(this.database(), addDays(today, -13), today)).entries()]
-            .sort((a, b) => b[1].count - a[1].count || (a[1].displayName ?? a[0]).localeCompare(b[1].displayName ?? b[0], "de"))
-            .slice(0, 3)
-            .map(([userId, entry], index) => ({
-              rank: (index + 1) as 1 | 2 | 3,
-              completed: entry.count,
-              ...(settings.showAssigneeNames
-                ? { displayName: users.get(userId) ?? entry.displayName ?? "Nicht verfügbar" }
+        ? (await publicPodiumLeaders(this.database(), today)).map(({ userId, rank }) => {
+            const avatar = this.state.users.find((user) => user.id === userId)?.avatar;
+            return {
+              rank,
+              ...(avatar
+                ? { avatarUrl: `/api/public/dashboard/${encodeURIComponent(settings.slug)}/podium/${rank}/avatar?v=${encodeURIComponent(avatar.updatedAt)}` }
                 : {}),
-            }))
+            };
+          })
         : undefined;
 
       return {
@@ -582,6 +591,26 @@ export class StateStore {
         ...(podium ? { podium } : {}),
         generatedAt: this.now().toISOString(),
       };
+    });
+  }
+
+  async getPublicPodiumAvatar(slug: string, rank: 1 | 2 | 3): Promise<NonNullable<AppUser["avatar"]>> {
+    return this.enqueue(async () => {
+      await this.applyCleanup();
+      const dashboardResult = await this.database().query(
+        "SELECT 1 FROM public_dashboards WHERE slug = $1 AND is_enabled = TRUE AND show_podium = TRUE",
+        [slug],
+      );
+      if (!dashboardResult.rows[0]) {
+        throw new NotFoundError("Das Profilbild ist nicht verfügbar.");
+      }
+      const leader = (await publicPodiumLeaders(this.database(), dateInTimeZone(this.now())))
+        .find((entry) => entry.rank === rank);
+      const avatar = leader
+        ? this.state.users.find((user) => user.id === leader.userId)?.avatar
+        : undefined;
+      if (!avatar) throw new NotFoundError("Das Profilbild ist nicht verfügbar.");
+      return structuredClone(avatar);
     });
   }
 

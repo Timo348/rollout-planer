@@ -801,16 +801,16 @@ h1, h2, h3, p { margin-top: 0; }
 .trend-bar > span { color: var(--ink-500); font-size: 8px; font-weight: 800; }
 .trend-bar > i { width: min(20px, 80%); height: var(--trend-height); min-height: 2px; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg, #777eff, var(--primary)); transition: height 180ms ease; }
 .trend-bar > small { color: var(--ink-400); font-size: 7px; writing-mode: vertical-rl; transform: rotate(180deg); }
-.public-podium__list { padding: 8px; display: grid; gap: 6px; }
-.public-podium__list article { min-width: 0; min-height: 48px; padding: 8px 10px; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-muted); }
-.public-podium__rank { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; border-radius: 9px; color: #8c6721; background: var(--amber-soft); font-size: 9px; font-weight: 900; }
-.public-podium__rank.is-rank-1 { color: #7d5b00; background: #f7df85; }
-.public-podium__rank.is-rank-2 { color: #5f6675; background: #e5e8ef; }
-.public-podium__rank.is-rank-3 { color: #825033; background: #efd0b8; }
-.public-podium__list article > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.public-podium__list strong, .public-podium__list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.public-podium__list strong { font-size: 10px; }
-.public-podium__list small { color: var(--ink-400); font-size: 8px; font-weight: 700; }
+.public-podium__stage { min-height: 138px; padding: 14px 14px 10px; display: flex; align-items: flex-end; justify-content: center; gap: 12px; }
+.public-podium__stage article { display: flex; align-items: center; justify-content: center; }
+.public-podium__stage article.is-rank-1 { order: 2; align-self: flex-start; }
+.public-podium__stage article.is-rank-2 { order: 1; margin-bottom: 16px; }
+.public-podium__stage article.is-rank-3 { order: 3; }
+.public-podium__avatar { width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 4px solid #e5e8ef; border-radius: 50%; color: var(--ink-400); background: var(--surface-muted); box-shadow: var(--shadow-sm); }
+.public-podium__stage .is-rank-1 .public-podium__avatar { width: 76px; height: 76px; border-color: #f0ca4d; box-shadow: 0 8px 24px rgba(191, 144, 0, .2); }
+.public-podium__stage .is-rank-3 .public-podium__avatar { width: 52px; height: 52px; border-color: #d49a70; }
+.public-podium__avatar img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.public-podium__avatar svg { width: 52%; height: 52%; }
 .public-podium__empty { min-height: 72px; margin: 0; padding: 16px; display: flex; align-items: center; justify-content: center; color: var(--ink-400); font-size: 10px; text-align: center; }
 .public-state { min-height: 100vh; padding: 30px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--ink-500); background: #f4f6fa; }
 .public-state--error { flex-direction: column; text-align: center; }
@@ -855,9 +855,11 @@ h1, h2, h3, p { margin-top: 0; }
   .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-panel__heading { min-height: 48px; padding: 7px 9px; }
   .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-panel__heading h2 { font-size: 13px; }
   .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-side { grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
-  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 5px; }
-  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__list article { min-height: 42px; padding: 5px; grid-template-columns: 28px minmax(0, 1fr); gap: 4px; }
-  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__rank { width: 25px; height: 25px; }
+  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__stage { min-height: 66px; padding: 5px; gap: 5px; }
+  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__avatar { width: 34px; height: 34px; border-width: 2px; }
+  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__stage .is-rank-1 .public-podium__avatar { width: 44px; height: 44px; }
+  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__stage .is-rank-2 { margin-bottom: 8px; }
+  .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .public-podium__stage .is-rank-3 .public-podium__avatar { width: 30px; height: 30px; }
   .public-dashboard:is([data-zoom="175"], [data-zoom="200"], [data-zoom="225"], [data-zoom="250"]) .trend-chart { min-height: 58px; padding: 8px 8px 5px; }
 }
 
