@@ -1125,9 +1125,9 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
               title={theme === "dark" ? "Hellmodus" : "Dunkelmodus"}
             >{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</button>
             <button className="icon-button refresh-button" type="button" onClick={() => void load(true)} disabled={refreshing} aria-label="Ansicht aktualisieren" title="Aktualisieren"><RefreshCw className={refreshing ? "spin" : ""} size={17} /></button>
-            {data.permissions.manageUsers && <button className="button button--ghost button--agenda-mail" type="button" disabled={agendaBusy} onClick={() => void sendAgendaMails()}>{agendaBusy ? <LoaderCircle className="spin" size={17} /> : <MailPlus size={17} />}Terminmail heute senden</button>}
-            {data.permissions.manageUsers && <button className="button button--ghost button--manage-users" type="button" onClick={() => setUserManagementOpen(true)}><UsersRound size={17} />Benutzerverwaltung</button>}
-            <button className="button button--primary button--create" type="button" onClick={() => openCreateDialog()}><Plus size={18} />Termine erstellen</button>
+            {data.permissions.manageUsers && <button className="button button--ghost button--agenda-mail" type="button" disabled={agendaBusy} onClick={() => void sendAgendaMails()} aria-label="Terminmail heute senden" title="Terminmail heute senden">{agendaBusy ? <LoaderCircle className="spin" size={17} /> : <MailPlus size={17} />}<span>Terminmail heute senden</span></button>}
+            {data.permissions.manageUsers && <button className="button button--ghost button--manage-users" type="button" onClick={() => setUserManagementOpen(true)} aria-label="Benutzerverwaltung" title="Benutzerverwaltung"><UsersRound size={17} /><span>Benutzerverwaltung</span></button>}
+            <button className="button button--primary button--create" type="button" onClick={() => openCreateDialog()}><Plus size={18} /><span>Termine erstellen</span></button>
           </div>
         </header>
 

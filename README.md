@@ -26,6 +26,7 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - Änderungsmodul für alle Benutzer: Admins veröffentlichen Meldungen mit bis zu 50 Wörtern, die nach 21 Tagen automatisch von „Aktuelles“ nach „Allgemeines“ wechseln; neue Meldungen werden benutzerspezifisch mit `!` markiert
 - optionaler Punkt „Anleitung“ in der linken Navigation; das Ziel wird mit `GUIDE_URL` in `.env`/Compose konfiguriert und in einem neuen Tab geöffnet
 - mehrere frei benennbare, öffentliche Termin-Dashboards unter `/public/<kurzlink>` mit eigener Datenschutz-, Zeitraum-, Trend- und Aktualisierungskonfiguration; `/public` zeigt das festgelegte Standard-Dashboard
+- responsive Bedienung für Desktop, iPad/Tablet und Smartphone einschließlich mobiler Navigation, scrollbarer Terminplanung und angepasster Dialoge
 - tägliche Termin-E-Mail pro Benutzer individuell abbestellbar (Umschalter im Profilmenü)
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
