@@ -80,25 +80,26 @@ describe("Vorbereiter-Oberfläche", () => {
 describe("Änderungsmodul", () => {
   it("zeigt Admins das Eingabefeld mit Wortlimit", () => {
     const markup = renderToStaticMarkup(React.createElement(ChangesDialog, {
-      canManage: true,
+      canDelete: true,
       onClose: vi.fn(),
       onViewed: vi.fn(),
     }));
 
     expect(markup).toContain("Änderung veröffentlichen");
-    expect(markup).toContain("0/50 Wörter");
+    expect(markup).toContain("0/125 Wörter");
     expect(markup).toContain("Aktuelles");
     expect(markup).toContain("Allgemeines");
   });
 
-  it("blendet die Veröffentlichung für normale Benutzer aus", () => {
+  it("zeigt auch normalen Benutzern das Eingabefeld", () => {
     const markup = renderToStaticMarkup(React.createElement(ChangesDialog, {
-      canManage: false,
+      canDelete: false,
       onClose: vi.fn(),
       onViewed: vi.fn(),
     }));
 
-    expect(markup).not.toContain("Änderung veröffentlichen");
+    expect(markup).toContain("Änderung veröffentlichen");
+    expect(markup).toContain("0/125 Wörter");
     expect(markup).toContain("Änderungen werden geladen");
   });
 });

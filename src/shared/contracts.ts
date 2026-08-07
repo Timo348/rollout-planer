@@ -36,6 +36,8 @@ export interface AssignmentStatsEntry {
 
 export type AssignmentStatsPeriod = "14d" | "month" | "all";
 
+export const CHANGE_NOTICE_MAX_WORDS = 125;
+
 export interface ChangeNotice {
   id: string;
   content: string;

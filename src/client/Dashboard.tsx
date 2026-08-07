@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { CHANGE_NOTICE_MAX_WORDS } from "../shared/contracts";
 import type { AppUser, Appointment, AppointmentHistoryEntry, AssignmentStatsEntry, AssignmentStatsPeriod, BootstrapResponse, ChangeNotice, ChangeNoticeLists, FixedSlot } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { ConfirmDialog, CreateDialog, EditDialog } from "./Dialogs";
@@ -619,11 +620,11 @@ function StatsDialog({ onClose }: { onClose: () => void }) {
 }
 
 export function ChangesDialog({
-  canManage,
+  canDelete,
   onClose,
   onViewed,
 }: {
-  canManage: boolean;
+  canDelete: boolean;
   onClose: () => void;
   onViewed: () => void;
 }) {
@@ -651,7 +652,7 @@ export function ChangesDialog({
 
   const publish = async (event: FormEvent) => {
     event.preventDefault();
-    if (words === 0 || words > 50) return;
+    if (words === 0 || words > CHANGE_NOTICE_MAX_WORDS) return;
     setBusy(true);
     setError("");
     try {
@@ -700,28 +701,26 @@ export function ChangesDialog({
             <button className="icon-button" type="button" onClick={onClose} aria-label="Dialog schließen"><X size={20} /></button>
           </header>
           <div className="modal__body changes__body">
-            {canManage && (
-              <form className="changes__composer" onSubmit={(event) => void publish(event)}>
-                <div className="changes__composer-heading">
-                  <div><strong>Änderung veröffentlichen</strong><small>Kurze Information für alle Benutzer eintragen.</small></div>
-                  <span className={words > 50 ? "is-over-limit" : ""}>{words}/50 Wörter</span>
-                </div>
-                <textarea
-                  value={content}
-                  maxLength={1000}
-                  rows={4}
-                  placeholder="Zum Beispiel: Die Drucker-Installation funktioniert wieder."
-                  aria-label="Neue Änderung"
-                  onChange={(event) => setContent(event.target.value)}
-                />
-                <div className="changes__composer-actions">
-                  <small>Nach 21 Tagen erscheint die Meldung automatisch unter „Allgemeines“.</small>
-                  <button className="button button--primary" type="submit" disabled={busy || words === 0 || words > 50}>
-                    {busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Veröffentlichen
-                  </button>
-                </div>
-              </form>
-            )}
+            <form className="changes__composer" onSubmit={(event) => void publish(event)}>
+              <div className="changes__composer-heading">
+                <div><strong>Änderung veröffentlichen</strong><small>Kurze Information für alle Benutzer eintragen.</small></div>
+                <span className={words > CHANGE_NOTICE_MAX_WORDS ? "is-over-limit" : ""}>{words}/{CHANGE_NOTICE_MAX_WORDS} Wörter</span>
+              </div>
+              <textarea
+                value={content}
+                maxLength={1000}
+                rows={4}
+                placeholder="Zum Beispiel: Die Drucker-Installation funktioniert wieder."
+                aria-label="Neue Änderung"
+                onChange={(event) => setContent(event.target.value)}
+              />
+              <div className="changes__composer-actions">
+                <small>Nach 21 Tagen erscheint die Meldung automatisch unter „Allgemeines“.</small>
+                <button className="button button--primary" type="submit" disabled={busy || words === 0 || words > CHANGE_NOTICE_MAX_WORDS}>
+                  {busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Veröffentlichen
+                </button>
+              </div>
+            </form>
 
             {error && <div className="alert alert--error changes__error" role="alert">{error}</div>}
 
@@ -747,7 +746,7 @@ export function ChangesDialog({
                       <p>{entry.content}</p>
                       <small>Veröffentlicht am {formatPublishedAt(entry.publishedAt)} von {entry.publishedByName}</small>
                     </div>
-                    {canManage && (
+                    {canDelete && (
                       <button className="changes__delete" type="button" disabled={busy} onClick={() => setPendingDelete(entry)} aria-label={`Änderung vom ${formatPublishedAt(entry.publishedAt)} löschen`} title="Änderung löschen">
                         <Trash2 size={15} />
                       </button>
@@ -1210,7 +1209,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       {editing && <EditDialog appointment={editing} users={data.users} onClose={() => setEditing(null)} onSave={async (payload) => { await mutate(editing, () => api.updateAppointment(editing.id, payload), "Termin gespeichert."); setEditing(null); }} />}
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
       {statsOpen && data.permissions.manageUsers && <StatsDialog onClose={() => setStatsOpen(false)} />}
-      {changesOpen && <ChangesDialog canManage={data.permissions.manageUsers} onClose={() => setChangesOpen(false)} onViewed={markChangesViewed} />}
+      {changesOpen && <ChangesDialog canDelete={data.permissions.manageUsers} onClose={() => setChangesOpen(false)} onViewed={markChangesViewed} />}
       {publicDashboardsOpen && data.permissions.manageUsers && <PublicDashboardAdmin onClose={() => setPublicDashboardsOpen(false)} onUnauthorized={onLoggedOut} />}
       {confirm && <ConfirmDialog title={confirm.title} message={confirm.message} destructive={confirm.destructive} busy={confirmBusy} onCancel={() => setConfirm(null)} onConfirm={() => void runConfirmed()} />}
       {toast && <div className={`toast toast--${toast.tone}`} role="status">{toast.tone === "success" ? <Check size={17} /> : <X size={17} />}{toast.message}</div>}

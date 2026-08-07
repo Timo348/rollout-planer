@@ -578,7 +578,7 @@ describe("Rollout API", () => {
       method: "POST",
       url: "/api/changes",
       headers: {
-        cookie: adminCookie,
+        cookie: bobCookie,
         origin: "http://localhost:8080",
         "content-type": "application/json",
       },
@@ -586,22 +586,23 @@ describe("Rollout API", () => {
     });
     expect(created.statusCode).toBe(201);
     const noticeId = created.json<{ notice: { id: string } }>().notice.id;
+    expect(created.json()).toMatchObject({ notice: { publishedByName: "bob Beispiel" } });
 
     expect((await app.inject({
       method: "GET",
       url: "/api/bootstrap",
-      headers: { cookie: adminCookie },
+      headers: { cookie: bobCookie },
     })).json<BootstrapResponse>().hasUnreadChanges).toBe(false);
     expect((await app.inject({
       method: "GET",
       url: "/api/bootstrap",
-      headers: { cookie: bobCookie },
+      headers: { cookie: adminCookie },
     })).json<BootstrapResponse>().hasUnreadChanges).toBe(true);
 
     const viewed = await app.inject({
       method: "POST",
       url: "/api/changes/view",
-      headers: { cookie: bobCookie, origin: "http://localhost:8080" },
+      headers: { cookie: adminCookie, origin: "http://localhost:8080" },
     });
     expect(viewed.statusCode).toBe(200);
     expect(viewed.json<{ current: Array<{ id: string }>; general: unknown[] }>().current)
@@ -610,7 +611,7 @@ describe("Rollout API", () => {
     expect((await app.inject({
       method: "GET",
       url: "/api/bootstrap",
-      headers: { cookie: bobCookie },
+      headers: { cookie: adminCookie },
     })).json<BootstrapResponse>().hasUnreadChanges).toBe(false);
 
     now = new Date("2026-08-27T10:00:00.000Z");
@@ -624,7 +625,7 @@ describe("Rollout API", () => {
     expect(archived.json<{ current: unknown[]; general: Array<{ id: string }> }>().general)
       .toEqual([expect.objectContaining({ id: noticeId })]);
 
-    const forbiddenCreate = await app.inject({
+    const maximumLength = await app.inject({
       method: "POST",
       url: "/api/changes",
       headers: {
@@ -632,19 +633,19 @@ describe("Rollout API", () => {
         origin: "http://localhost:8080",
         "content-type": "application/json",
       },
-      payload: { content: "Nicht erlaubt" },
+      payload: { content: Array.from({ length: 125 }, () => "Wort").join(" ") },
     });
-    expect(forbiddenCreate.statusCode).toBe(403);
+    expect(maximumLength.statusCode).toBe(201);
 
     const tooLong = await app.inject({
       method: "POST",
       url: "/api/changes",
       headers: {
-        cookie: adminCookie,
+        cookie: bobCookie,
         origin: "http://localhost:8080",
         "content-type": "application/json",
       },
-      payload: { content: Array.from({ length: 51 }, () => "Wort").join(" ") },
+      payload: { content: Array.from({ length: 126 }, () => "Wort").join(" ") },
     });
     expect(tooLong.statusCode).toBe(400);
 

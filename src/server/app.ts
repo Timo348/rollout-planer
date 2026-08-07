@@ -5,6 +5,7 @@ import helmet from "@fastify/helmet";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
+import { CHANGE_NOTICE_MAX_WORDS } from "../shared/contracts.js";
 import {
   AuthService,
   OAUTH_FLOW_COOKIE,
@@ -90,8 +91,8 @@ const changeNoticeSchema = z.object({
     .trim()
     .min(1, "Bitte eine Änderung eintragen.")
     .max(1000, "Die Änderung ist zu lang.")
-    .refine((value) => value.split(/\s+/).filter(Boolean).length <= 50, {
-      message: "Eine Änderung darf maximal 50 Wörter enthalten.",
+    .refine((value) => value.split(/\s+/).filter(Boolean).length <= CHANGE_NOTICE_MAX_WORDS, {
+      message: `Eine Änderung darf maximal ${CHANGE_NOTICE_MAX_WORDS} Wörter enthalten.`,
     }),
 });
 
@@ -523,7 +524,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
 
   app.post(
     "/api/changes",
-    { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
+    { preHandler: [authenticate, verifyOrigin] },
     async (request, reply) => {
       const { content } = changeNoticeSchema.parse(request.body);
       const notice = await store.createChangeNotice(
