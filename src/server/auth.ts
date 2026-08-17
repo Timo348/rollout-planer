@@ -137,7 +137,7 @@ export class AuthService {
       user: {
         id: `local:${this.config.adminUsername}`,
         username: this.config.adminUsername,
-        displayName: "Administrator",
+        displayName: "Administration",
         source: "local",
         lastSeenAt: new Date().toISOString(),
         isPreparer: false,

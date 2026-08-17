@@ -341,7 +341,7 @@ export function UserManagementDialog({
       await onDelete(pendingUser);
       setPendingUser(null);
     } catch (caught) {
-      setDeleteError(caught instanceof Error ? caught.message : "Benutzer konnte nicht gelöscht werden.");
+      setDeleteError(caught instanceof Error ? caught.message : "Profil konnte nicht gelöscht werden.");
     } finally {
       setDeleteBusy(false);
     }
@@ -353,7 +353,7 @@ export function UserManagementDialog({
     try {
       await onPreparerChange(user, isPreparer);
     } catch (caught) {
-      setPreparerError(caught instanceof Error ? caught.message : "Vorbereiter-Einstellung konnte nicht gespeichert werden.");
+      setPreparerError(caught instanceof Error ? caught.message : "Vorbereitungsrolle konnte nicht gespeichert werden.");
     } finally {
       setPreparerBusyId(null);
     }
@@ -366,13 +366,13 @@ export function UserManagementDialog({
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !settingsBusy && onClose()}>
         <section className="modal modal--user-management" role="dialog" aria-modal="true" aria-labelledby="user-management-title">
           <header className="modal__header">
-            <div><p className="eyebrow">Administration</p><h2 id="user-management-title">Benutzerverwaltung</h2></div>
+            <div><p className="eyebrow">Administration</p><h2 id="user-management-title">Profilverwaltung</h2></div>
             <button className="icon-button" type="button" disabled={settingsBusy} onClick={onClose} aria-label="Dialog schließen"><X size={20} /></button>
           </header>
           <div className="modal__body modal__body--user-management">
             <div className="user-management__intro">
-              <div><strong>Lokale Benutzer</strong><small>{users.length} {users.length === 1 ? "Eintrag" : "Einträge"}</small></div>
-              <p>Vorbereiter können alle Termine prüfen und als vorbereitet markieren. Authentik-Konten bleiben unverändert.</p>
+              <div><strong>Lokale Profile</strong><small>{users.length} {users.length === 1 ? "Eintrag" : "Einträge"}</small></div>
+              <p>Personen mit Vorbereitungsrolle können alle Termine prüfen und als vorbereitet markieren. Authentik-Konten bleiben unverändert.</p>
             </div>
             <div className="user-management__list">
               {orderedUsers.map((user) => {
@@ -392,7 +392,7 @@ export function UserManagementDialog({
                           disabled={settingsBusy}
                           onChange={(event) => void changePreparer(user, event.target.checked)}
                         />
-                        <span>Vorbereiter</span>
+                        <span>Vorbereitungsrolle</span>
                       </label>
                       {isCurrentUser ? (
                         <span className="user-management__self">Aktuell angemeldet</span>
@@ -416,12 +416,12 @@ export function UserManagementDialog({
       </div>
       {pendingUser && (
         <ConfirmDialog
-          title="Benutzer löschen?"
+          title="Profil löschen?"
           message={`Das lokale App-Profil von „${pendingUser.displayName}“ inklusive Profilbild wird gelöscht. Zugewiesene Termine werden wieder frei. Das Authentik-Konto bleibt bestehen und eine erneute Anmeldung ist möglich.`}
           destructive
           busy={deleteBusy}
           error={deleteError}
-          confirmLabel="Benutzer löschen"
+          confirmLabel="Profil löschen"
           onCancel={() => {
             setDeleteError("");
             setPendingUser(null);
@@ -703,7 +703,7 @@ export function ChangesDialog({
           <div className="modal__body changes__body">
             <form className="changes__composer" onSubmit={(event) => void publish(event)}>
               <div className="changes__composer-heading">
-                <div><strong>Änderung veröffentlichen</strong><small>Kurze Information für alle Benutzer eintragen.</small></div>
+                <div><strong>Änderung veröffentlichen</strong><small>Kurze Information für alle Personen eintragen.</small></div>
                 <span className={words > CHANGE_NOTICE_MAX_WORDS ? "is-over-limit" : ""}>{words}/{CHANGE_NOTICE_MAX_WORDS} Wörter</span>
               </div>
               <textarea
@@ -765,7 +765,7 @@ export function ChangesDialog({
       {pendingDelete && (
         <ConfirmDialog
           title="Änderung löschen?"
-          message="Die Meldung wird für alle Benutzer endgültig entfernt."
+          message="Die Meldung wird für alle Personen endgültig entfernt."
           destructive
           busy={busy}
           onCancel={() => setPendingDelete(null)}
@@ -1125,7 +1125,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
             >{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</button>
             <button className="icon-button refresh-button" type="button" onClick={() => void load(true)} disabled={refreshing} aria-label="Ansicht aktualisieren" title="Aktualisieren"><RefreshCw className={refreshing ? "spin" : ""} size={17} /></button>
             {data.permissions.manageUsers && <button className="button button--ghost button--agenda-mail" type="button" disabled={agendaBusy} onClick={() => void sendAgendaMails()} aria-label="Terminmail heute senden" title="Terminmail heute senden">{agendaBusy ? <LoaderCircle className="spin" size={17} /> : <MailPlus size={17} />}<span>Terminmail heute senden</span></button>}
-            {data.permissions.manageUsers && <button className="button button--ghost button--manage-users" type="button" onClick={() => setUserManagementOpen(true)} aria-label="Benutzerverwaltung" title="Benutzerverwaltung"><UsersRound size={17} /><span>Benutzerverwaltung</span></button>}
+            {data.permissions.manageUsers && <button className="button button--ghost button--manage-users" type="button" onClick={() => setUserManagementOpen(true)} aria-label="Profilverwaltung" title="Profilverwaltung"><UsersRound size={17} /><span>Profilverwaltung</span></button>}
             <button className="button button--primary button--create" type="button" onClick={() => openCreateDialog()}><Plus size={18} /><span>Termine erstellen</span></button>
           </div>
         </header>
@@ -1191,7 +1191,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
         try {
           await api.setUserPreparer(user.id, isPreparer);
           await load(true);
-          showToast(`${user.displayName} ist ${isPreparer ? "jetzt Vorbereiter." : "kein Vorbereiter mehr."}`);
+          showToast(`${user.displayName}: Vorbereitungsrolle ${isPreparer ? "aktiviert." : "deaktiviert."}`);
         } catch (caught) {
           if (caught instanceof ApiError && caught.status === 401) onLoggedOut();
           throw caught;

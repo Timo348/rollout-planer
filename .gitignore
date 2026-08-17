@@ -1,7 +1,8 @@
 node_modules/
 .pnpm-store/
 dist/
-.env
+.env*
+!.env.example
 data/
 *.log
 .DS_Store

@@ -80,7 +80,7 @@ function LoginScreen({
             <p className="eyebrow eyebrow--light">Windows 11 Rollout</p>
             <h1>Termine verteilen.<br />Ohne Abstimmungschaos.</h1>
             <p className="login-visual__text">
-              Alle Kundentermine und Zuständigkeiten auf einen Blick – schnell geplant, klar verteilt.
+              Alle Organisationstermine und Zuständigkeiten auf einen Blick – schnell geplant, klar verteilt.
             </p>
           </div>
           <div className="login-preview" aria-hidden="true">
@@ -113,7 +113,7 @@ function LoginScreen({
           {session.adminLoginEnabled && (
             <form className="login-form" onSubmit={adminLogin}>
               <label className="field">
-                Benutzername
+                Anmeldename
                 <input
                   type="text"
                   autoComplete="username"

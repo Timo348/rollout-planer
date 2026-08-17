@@ -40,7 +40,7 @@ async function testConfig(devLoginEnabled = true): Promise<AppConfig> {
     secureCookies: false,
     trustProxy: false,
     devLoginEnabled,
-    devLoginName: "Entwickler",
+    devLoginName: "Entwicklung",
     devLoginUsername: "dev",
     adminLoginEnabled: true,
     adminUsername: "admin",
@@ -161,7 +161,7 @@ describe("Rollout API", () => {
     expect(bootstrap.appointments.filter((appointment) => appointment.assigneeId === initial.currentUser.id)).toHaveLength(2);
   });
 
-  it("meldet den lokalen Administrator mit Benutzername und Passwort an", async () => {
+  it("meldet das lokale Administrationskonto mit Anmeldename und Passwort an", async () => {
     const app = await createApp();
     const wrong = await app.inject({
       method: "POST",
@@ -256,7 +256,7 @@ describe("Rollout API", () => {
         date: "2026-07-10",
         startTime: "08:00",
         endTime: "09:00",
-        name: "Kunde Alt",
+        name: "Organisation Alt",
         assigneeId: null,
         createdBy: "oidc:archiv",
         createdAt: "2026-07-09T08:00:00.000Z",
@@ -286,7 +286,7 @@ describe("Rollout API", () => {
     expect(history.statusCode).toBe(200);
     const { entries } = history.json<{ entries: Array<Record<string, unknown>> }>();
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ name: "Kunde Alt", date: "2026-07-10", reason: "abgelaufen" });
+    expect(entries[0]).toMatchObject({ name: "Organisation Alt", date: "2026-07-10", reason: "abgelaufen" });
 
     const updated = await app.inject({
       method: "PUT",
@@ -301,14 +301,14 @@ describe("Rollout API", () => {
     expect(bootstrap.json<BootstrapResponse>().currentUser.agendaMailsEnabled).toBe(false);
   });
 
-  it("liefert die Terminstatistik nur für Admins und lässt manuelle Korrekturen zu", async () => {
+  it("liefert die Terminstatistik nur mit Administrationsberechtigung und lässt manuelle Korrekturen zu", async () => {
     const config = await testConfig(true);
     await writeFile(config.dataFile, JSON.stringify({
       schemaVersion: 4,
       users: [{
         id: "dev:dev",
         username: "dev",
-        displayName: "Entwickler",
+        displayName: "Entwicklung",
         source: "dev",
         lastSeenAt: "2026-07-09T08:00:00.000Z",
       }],
@@ -317,7 +317,7 @@ describe("Rollout API", () => {
         date: "2026-07-10",
         startTime: "08:00",
         endTime: "09:00",
-        name: "Kunde Alt",
+        name: "Organisation Alt",
         assigneeId: "dev:dev",
         createdBy: "dev:dev",
         createdAt: "2026-07-09T08:00:00.000Z",
@@ -401,7 +401,7 @@ describe("Rollout API", () => {
     expect(invalidPeriod.statusCode).toBe(400);
   });
 
-  it("schützt die Benutzerlöschung serverseitig und sperrt die Sitzung des entfernten Benutzers", async () => {
+  it("schützt die Profillöschung serverseitig und sperrt die Sitzung des entfernten Profils", async () => {
     const config = await testConfig(true);
     const store = new StateStore(config.databaseUrl, () => new Date("2026-07-15T08:00:00.000Z"), true, config.dataFile);
     await store.initialize();
@@ -441,7 +441,7 @@ describe("Rollout API", () => {
       headers: { cookie: adminCookie, origin: "http://localhost:8080" },
     });
     expect(deleted.statusCode).toBe(204);
-    await expect(store.getUser("oidc:bob")).rejects.toThrow("Benutzer wurde nicht gefunden");
+    await expect(store.getUser("oidc:bob")).rejects.toThrow("Profil wurde nicht gefunden");
 
     const staleSession = await app.inject({
       method: "GET",
@@ -457,7 +457,7 @@ describe("Rollout API", () => {
     expect(staleBootstrap.statusCode).toBe(401);
   });
 
-  it("erlaubt nur Vorbereitern, Termine als vorbereitet zu markieren", async () => {
+  it("erlaubt nur Personen mit Vorbereitungsrolle, Termine als vorbereitet zu markieren", async () => {
     const config = await testConfig(true);
     const store = new StateStore(
       config.databaseUrl,
@@ -494,7 +494,7 @@ describe("Rollout API", () => {
       },
       payload: {
         date: bootstrap.dates.today,
-        slots: [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
+        slots: [{ startTime: "08:00", endTime: "09:00", names: ["Organisation A"] }],
       },
     });
     const appointment = created.json<{ appointments: BootstrapResponse["appointments"] }>()

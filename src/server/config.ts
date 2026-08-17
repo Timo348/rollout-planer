@@ -104,7 +104,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     secureCookies: parseBoolean(env.SESSION_COOKIE_SECURE, appBaseUrl.startsWith("https://")),
     trustProxy: parseBoolean(env.TRUST_PROXY, false),
     devLoginEnabled,
-    devLoginName: env.DEV_LOGIN_NAME?.trim() || "Entwickler",
+    devLoginName: env.DEV_LOGIN_NAME?.trim() || "Entwicklung",
     devLoginUsername: env.DEV_LOGIN_USERNAME?.trim() || "dev",
     adminLoginEnabled: parseBoolean(env.ADMIN_LOGIN_ENABLED, true),
     adminUsername: env.ADMIN_USERNAME?.trim() || "admin",

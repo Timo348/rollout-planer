@@ -228,7 +228,7 @@ export function PublicDashboardPage({ slug }: { slug?: string }) {
               <section className="public-panel public-podium" aria-labelledby="public-podium-title">
                 <div className="public-panel__heading">
                   <div><p className="eyebrow">Letzte 14 Tage</p><h2 id="public-podium-title">Podium</h2></div>
-                  <span>Top 3 Mitarbeiter</span>
+                  <span>Top 3 Profile</span>
                 </div>
                 {(data.podium?.length ?? 0) > 0 ? (
                   <div className="public-podium__stage">

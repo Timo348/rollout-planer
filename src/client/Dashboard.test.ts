@@ -21,7 +21,7 @@ function appointment(isPrepared: boolean): Appointment {
     date: "2026-07-30",
     startTime: "08:00",
     endTime: "09:00",
-    name: "Kunde A",
+    name: "Organisation A",
     assigneeId: null,
     isPrepared,
     createdBy: user.id,
@@ -45,7 +45,7 @@ function renderAppointment(isPrepared: boolean) {
   }));
 }
 
-describe("Vorbereiter-Oberfläche", () => {
+describe("Oberfläche für die Vorbereitungsrolle", () => {
   it("zeigt offene Termine rot mit einer nicht gesetzten Vorbereitungskontrolle", () => {
     const markup = renderAppointment(false);
 
@@ -62,7 +62,7 @@ describe("Vorbereiter-Oberfläche", () => {
     expect(markup).toContain('aria-pressed="true"');
   });
 
-  it("zeigt die Vorbereiter-Checkbox in der Benutzerverwaltung", () => {
+  it("zeigt die Checkbox für die Vorbereitungsrolle in der Profilverwaltung", () => {
     const markup = renderToStaticMarkup(React.createElement(UserManagementDialog, {
       users: [user],
       currentUser: user,
@@ -73,12 +73,12 @@ describe("Vorbereiter-Oberfläche", () => {
 
     expect(markup).toContain("user-management__preparer is-active");
     expect(markup).toContain('type="checkbox"');
-    expect(markup).toContain("Vorbereiter");
+    expect(markup).toContain("Vorbereitungsrolle");
   });
 });
 
 describe("Änderungsmodul", () => {
-  it("zeigt Admins das Eingabefeld mit Wortlimit", () => {
+  it("zeigt bei Administrationsberechtigung das Eingabefeld mit Wortlimit", () => {
     const markup = renderToStaticMarkup(React.createElement(ChangesDialog, {
       canDelete: true,
       onClose: vi.fn(),
@@ -91,7 +91,7 @@ describe("Änderungsmodul", () => {
     expect(markup).toContain("Allgemeines");
   });
 
-  it("zeigt auch normalen Benutzern das Eingabefeld", () => {
+  it("zeigt auch Personen ohne Administrationsberechtigung das Eingabefeld", () => {
     const markup = renderToStaticMarkup(React.createElement(ChangesDialog, {
       canDelete: false,
       onClose: vi.fn(),

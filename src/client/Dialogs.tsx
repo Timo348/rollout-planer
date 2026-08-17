@@ -300,7 +300,7 @@ export function CreateDialog({
 
             {(selected.size > 0 || customEnabled) && (
               <div className="form-section">
-                <div className="form-section__heading"><span>3</span><div><strong>Termine benennen</strong><small>Anzahl einstellen und Kundennamen eintragen</small></div></div>
+                <div className="form-section__heading"><span>3</span><div><strong>Termine benennen</strong><small>Anzahl einstellen und Organisationsnamen eintragen</small></div></div>
                 <div className="draft-list">
                   {[...selected].map((key) => {
                     const draft = drafts[key]!;

@@ -256,7 +256,7 @@ export class StateStore {
   async getUser(id: string): Promise<AppUser> {
     return this.enqueue(async () => {
       const user = this.state.users.find((entry) => entry.id === id);
-      if (!user) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      if (!user) throw new NotFoundError("Das Profil wurde nicht gefunden.");
       return structuredClone(user);
     });
   }
@@ -264,7 +264,7 @@ export class StateStore {
   async setUserAvatar(id: string, avatar: AppUser["avatar"] | null): Promise<AppUser> {
     return this.enqueue(async () => {
       const index = this.state.users.findIndex((entry) => entry.id === id);
-      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      if (index < 0) throw new NotFoundError("Das Profil wurde nicht gefunden.");
       const existing = this.state.users[index]!;
       const updated = avatar
         ? { ...existing, avatar }
@@ -278,7 +278,7 @@ export class StateStore {
   async setAgendaMailsEnabled(id: string, enabled: boolean): Promise<AppUser> {
     return this.enqueue(async () => {
       const index = this.state.users.findIndex((entry) => entry.id === id);
-      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      if (index < 0) throw new NotFoundError("Das Profil wurde nicht gefunden.");
       const updated = { ...this.state.users[index]!, agendaMailsEnabled: enabled };
       this.state.users[index] = updated;
       await this.persist();
@@ -289,7 +289,7 @@ export class StateStore {
   async setUserPreparer(id: string, isPreparer: boolean): Promise<AppUser> {
     return this.enqueue(async () => {
       const index = this.state.users.findIndex((entry) => entry.id === id);
-      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      if (index < 0) throw new NotFoundError("Das Profil wurde nicht gefunden.");
       const updated = { ...this.state.users[index]!, isPreparer };
       this.state.users[index] = updated;
       await this.persist();
@@ -300,7 +300,7 @@ export class StateStore {
   async adjustStatsAdjustment(id: string, delta: number): Promise<AppUser> {
     return this.enqueue(async () => {
       const index = this.state.users.findIndex((entry) => entry.id === id);
-      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      if (index < 0) throw new NotFoundError("Das Profil wurde nicht gefunden.");
       const updated = {
         ...this.state.users[index]!,
         statsAdjustment: (this.state.users[index]!.statsAdjustment ?? 0) + delta,
@@ -618,7 +618,7 @@ export class StateStore {
     return this.enqueue(async () => {
       await this.applyCleanup();
       const index = this.state.users.findIndex((entry) => entry.id === id);
-      if (index < 0) throw new NotFoundError("Der Benutzer wurde nicht gefunden.");
+      if (index < 0) throw new NotFoundError("Das Profil wurde nicht gefunden.");
 
       const removed = this.state.users[index]!;
       const timestamp = this.now().toISOString();
@@ -647,7 +647,7 @@ export class StateStore {
     return this.enqueue(async () => {
       await this.applyCleanup();
       const currentUser = this.state.users.find((user) => user.id === currentUserId);
-      if (!currentUser) throw new NotFoundError("Der angemeldete Benutzer ist nicht bekannt.");
+      if (!currentUser) throw new NotFoundError("Das angemeldete Profil ist nicht bekannt.");
       const dates = scheduleDates(this.now());
       const users = [...this.state.users].sort((a, b) =>
         a.displayName.localeCompare(b.displayName, "de", { sensitivity: "base" }),
@@ -703,7 +703,7 @@ export class StateStore {
         throw new StateValidationError("Termine können nur für die fünf angezeigten Planungstage erstellt werden.");
       }
       if (!this.state.users.some((user) => user.id === actorId)) {
-        throw new StateValidationError("Der angemeldete Benutzer ist nicht bekannt.");
+        throw new StateValidationError("Das angemeldete Profil ist nicht bekannt.");
       }
 
       const timestamp = this.now().toISOString();

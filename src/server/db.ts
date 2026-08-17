@@ -36,11 +36,11 @@ export async function openDatabase(connectionString: string): Promise<Database> 
   `);
   // Bestand aus Version 3.0: alte Quellen-Einschränkung ohne 'local' entfernen.
   await pool.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_source_check");
-  // Bestand älterer Versionen: optionale Mail-Einstellung der Benutzer nachrüsten.
+  // Bestand älterer Versionen: optionale Mail-Einstellung der Profile nachrüsten.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS agenda_mails_enabled BOOLEAN");
   // Bestand älterer Versionen: manuellen Statistik-Korrekturwert nachrüsten.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS stats_adjustment INTEGER");
-  // Bestand älterer Versionen: Vorbereiter-Rolle nachrüsten.
+  // Bestand älterer Versionen: Vorbereitungsrolle nachrüsten.
   await pool.query(
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_preparer BOOLEAN NOT NULL DEFAULT FALSE",
   );
@@ -305,7 +305,7 @@ export interface AssignmentCount {
 }
 
 /**
- * Zählt tatsächlich durchgeführte Termine (Grund "abgelaufen") pro Benutzer
+ * Zählt tatsächlich durchgeführte Termine (Grund "abgelaufen") pro Profil
  * aus den Tages-Archivtabellen. from/to sind einschließlich, null = unbegrenzt.
  */
 export async function countAssignmentsByAssignee(

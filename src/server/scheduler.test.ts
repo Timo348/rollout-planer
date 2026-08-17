@@ -47,12 +47,12 @@ describe("Tägliche Termin-E-Mails", () => {
     await store.upsertUser(user("oidc:alice", "alice@example.com"));
     const [first] = await store.createBatch(
       "2026-07-15",
-      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
+      [{ startTime: "08:00", endTime: "09:00", names: ["Organisation A"] }],
       "oidc:alice",
     );
     const [second] = await store.createBatch(
       "2026-07-15",
-      [{ startTime: "10:00", endTime: "11:00", names: ["Kunde B"] }],
+      [{ startTime: "10:00", endTime: "11:00", names: ["Organisation B"] }],
       "oidc:alice",
     );
     await store.updateAppointment(first!.id, 1, { assigneeId: "oidc:alice" });
@@ -72,18 +72,18 @@ describe("Tägliche Termin-E-Mails", () => {
     expect(mails).toHaveLength(2);
     const [firstMail, secondMail] = mails;
     expect(firstMail!.to).toBe("alice@example.com");
-    expect(firstMail!.subject).toBe("Rollout-Termin am 15.07.2026, 08:00–09:00 Uhr: Kunde A");
+    expect(firstMail!.subject).toBe("Rollout-Termin am 15.07.2026, 08:00–09:00 Uhr: Organisation A");
     expect(firstMail!.text).toContain("dein Termin am 15.07.2026:");
     expect(firstMail!.ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
-    expect(firstMail!.ics).toContain("SUMMARY:Kunde A");
-    expect(firstMail!.ics).not.toContain("SUMMARY:Kunde B");
+    expect(firstMail!.ics).toContain("SUMMARY:Organisation A");
+    expect(firstMail!.ics).not.toContain("SUMMARY:Organisation B");
     expect(firstMail!.ics).toContain("METHOD:REQUEST");
     expect(firstMail!.ics).toContain("ORGANIZER;CN=\"Rollout Planer\":mailto:rollout-planer@example.com");
     expect(firstMail!.ics).toContain("ATTENDEE;CN=\"alice Beispiel\";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:alice@example.com");
     expect(firstMail!.icsFileName).toBe("rollout-termin-2026-07-15-0800.ics");
-    expect(secondMail!.subject).toBe("Rollout-Termin am 15.07.2026, 10:00–11:00 Uhr: Kunde B");
+    expect(secondMail!.subject).toBe("Rollout-Termin am 15.07.2026, 10:00–11:00 Uhr: Organisation B");
     expect(secondMail!.ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
-    expect(secondMail!.ics).toContain("SUMMARY:Kunde B");
+    expect(secondMail!.ics).toContain("SUMMARY:Organisation B");
     expect(secondMail!.icsFileName).toBe("rollout-termin-2026-07-15-1000.ics");
   });
 
@@ -102,7 +102,7 @@ describe("Tägliche Termin-E-Mails", () => {
     expect(mails).toHaveLength(0);
   });
 
-  it("überspringt Benutzer mit deaktivierter Termin-E-Mail", async () => {
+  it("überspringt Profile mit deaktivierter Termin-E-Mail", async () => {
     const now = () => new Date("2026-07-15T05:00:00.000Z");
     const store = makeStore(now);
     await store.initialize();
@@ -110,7 +110,7 @@ describe("Tägliche Termin-E-Mails", () => {
     await store.setAgendaMailsEnabled("oidc:alice", false);
     const [appointment] = await store.createBatch(
       "2026-07-15",
-      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
+      [{ startTime: "08:00", endTime: "09:00", names: ["Organisation A"] }],
       "oidc:alice",
     );
     await store.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });

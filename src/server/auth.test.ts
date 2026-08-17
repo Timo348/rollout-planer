@@ -18,7 +18,7 @@ function config(): AppConfig {
     secureCookies: false,
     trustProxy: false,
     devLoginEnabled: true,
-    devLoginName: "Entwickler",
+    devLoginName: "Entwicklung",
     devLoginUsername: "dev",
     adminLoginEnabled: true,
     adminUsername: "admin",
@@ -29,7 +29,7 @@ function config(): AppConfig {
 }
 
 describe("Authentifizierung und Berechtigungen", () => {
-  it("erteilt die Benutzerverwaltung nur beim exakten Authentik-Gruppennamen", () => {
+  it("erteilt die Profilverwaltung nur beim exakten Authentik-Gruppennamen", () => {
     expect(permissionsFromClaims({ groups: ["rollout-planner-admin"] }).manageUsers).toBe(true);
     expect(permissionsFromClaims({ groups: ["Rollout-Planner-Admin"] }).manageUsers).toBe(false);
     expect(permissionsFromClaims({ groups: ["rollout-planner-admins"] }).manageUsers).toBe(false);

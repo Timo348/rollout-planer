@@ -56,15 +56,15 @@ describe("StateStore", () => {
     const first = makeStore(now);
     await first.initialize();
     await first.upsertUser(user());
-    await first.createBatch("2026-07-15", [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A", "Kunde B"] }], "oidc:alice");
+    await first.createBatch("2026-07-15", [{ startTime: "08:00", endTime: "09:00", names: ["Organisation A", "Organisation B"] }], "oidc:alice");
 
     const second = makeStore(now);
     await second.initialize();
     const snapshot = await second.getBootstrap("oidc:alice");
-    expect(snapshot.appointments.map((entry) => entry.name)).toEqual(["Kunde A", "Kunde B"]);
+    expect(snapshot.appointments.map((entry) => entry.name)).toEqual(["Organisation A", "Organisation B"]);
   });
 
-  it("persistiert Vorbereiter-Rolle und Vorbereitungsstatus mit Versionsprüfung", async () => {
+  it("persistiert Vorbereitungsrolle und Vorbereitungsstatus mit Versionsprüfung", async () => {
     const now = () => new Date("2026-07-15T08:00:00.000Z");
     const first = makeStore(now);
     await first.initialize();
@@ -76,7 +76,7 @@ describe("StateStore", () => {
 
     const [created] = await first.createBatch(
       "2026-07-15",
-      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde A"] }],
+      [{ startTime: "08:00", endTime: "09:00", names: ["Organisation A"] }],
       "oidc:alice",
     );
     expect(created!.isPrepared).toBe(false);
@@ -172,7 +172,7 @@ describe("StateStore", () => {
     const store = makeStore(() => new Date("2026-07-15T08:00:00.000Z"));
     await store.initialize();
     await store.upsertUser(user());
-    const [appointment] = await store.createBatch("2026-07-15", [{ startTime: "10:00", endTime: "11:00", names: ["Kunde"] }], "oidc:alice");
+    const [appointment] = await store.createBatch("2026-07-15", [{ startTime: "10:00", endTime: "11:00", names: ["Organisation"] }], "oidc:alice");
     await store.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });
     await expect(store.updateAppointment(appointment!.id, 1, { name: "Veraltet" })).rejects.toBeInstanceOf(ConflictError);
   });
@@ -214,7 +214,7 @@ describe("StateStore", () => {
     const dates = (await store.getBootstrap("oidc:alice")).dates;
     const [appointment] = await store.createBatch(
       dates.planningDays[4]!,
-      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde Zukunft"] }],
+      [{ startTime: "08:00", endTime: "09:00", names: ["Organisation Zukunft"] }],
       "oidc:alice",
     );
     await store.updateAppointment(appointment!.id, appointment!.version, { assigneeId: "oidc:alice" });
@@ -231,7 +231,7 @@ describe("StateStore", () => {
     expect(await store.getHistory(dates.planningDays[4]!)).toHaveLength(1);
   });
 
-  it("entfernt Entwicklungsbenutzer im sicheren Modus und archiviert ihre Termine", async () => {
+  it("entfernt Entwicklungsprofile im sicheren Modus und archiviert ihre Termine", async () => {
     const now = () => new Date("2026-07-15T08:00:00.000Z");
     const devStore = makeStore(now, true);
     await devStore.initialize();
@@ -247,7 +247,7 @@ describe("StateStore", () => {
     expect(history[0]).toMatchObject({ name: "Dev-Test", createdBy: "dev:local", reason: "dev-bereinigung" });
   });
 
-  it("löscht einen Benutzer und hebt seine Zuweisungen atomar auf", async () => {
+  it("löscht ein Profil und hebt die zugehörigen Zuweisungen atomar auf", async () => {
     const alice = user("oidc:alice");
     const bob = { ...user("oidc:bob"), username: "bob", displayName: "Bob Beispiel" };
     const legacy = await temporaryLegacyFile({
@@ -258,7 +258,7 @@ describe("StateStore", () => {
         date: "2026-07-15",
         startTime: "10:00",
         endTime: "11:00",
-        name: "Kunde",
+        name: "Organisation",
         assigneeId: "oidc:bob",
         createdBy: "oidc:bob",
         createdAt: "2026-07-14T08:00:00.000Z",
@@ -276,7 +276,7 @@ describe("StateStore", () => {
     const snapshot = await store.getBootstrap("oidc:alice");
 
     expect(removed).toMatchObject({ id: "oidc:bob", username: "bob" });
-    await expect(store.getUser("oidc:bob")).rejects.toThrow("Benutzer wurde nicht gefunden");
+    await expect(store.getUser("oidc:bob")).rejects.toThrow("Profil wurde nicht gefunden");
     expect(snapshot.users.map((entry) => entry.id)).toEqual(["oidc:alice"]);
     expect(snapshot.appointments).toEqual([
       expect.objectContaining({
@@ -293,7 +293,7 @@ describe("StateStore", () => {
     const store = makeStore(() => new Date("2026-07-15T08:00:00.000Z"));
     await store.initialize();
     await store.upsertUser(user());
-    const [appointment] = await store.createBatch("2026-07-15", [{ startTime: "10:00", endTime: "11:00", names: ["Kunde"] }], "oidc:alice");
+    const [appointment] = await store.createBatch("2026-07-15", [{ startTime: "10:00", endTime: "11:00", names: ["Organisation"] }], "oidc:alice");
     await store.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });
     await store.deleteAppointment(appointment!.id, 2);
 
@@ -301,7 +301,7 @@ describe("StateStore", () => {
     const history = await store.getHistory("2026-07-15");
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({
-      name: "Kunde",
+      name: "Organisation",
       assigneeId: "oidc:alice",
       assigneeDisplayName: "Alice Beispiel",
       reason: "gelöscht",
@@ -316,7 +316,7 @@ describe("StateStore", () => {
     const updated = await store.setAgendaMailsEnabled("oidc:alice", false);
     expect(updated.agendaMailsEnabled).toBe(false);
 
-    // Eine erneute OIDC-Anmeldung liefert den Benutzer ohne die Einstellung;
+    // Eine erneute OIDC-Anmeldung liefert das Profil ohne die Einstellung;
     // der gespeicherte Wert muss erhalten bleiben.
     await store.upsertUser(user());
     expect((await store.getUser("oidc:alice")).agendaMailsEnabled).toBe(false);
@@ -325,7 +325,7 @@ describe("StateStore", () => {
     expect(reenabled.agendaMailsEnabled).toBe(true);
   });
 
-  it("zählt durchgeführte Termine pro Benutzer und wendet manuelle Korrekturen an", async () => {
+  it("zählt durchgeführte Termine pro Profil und wendet manuelle Korrekturen an", async () => {
     const legacy = await temporaryLegacyFile({
       schemaVersion: 4,
       users: [user("oidc:alice"), user("oidc:bob")],
@@ -375,7 +375,7 @@ describe("StateStore", () => {
     });
     const [appointment] = await store.createBatch(
       "2026-07-15",
-      [{ startTime: "08:00", endTime: "09:00", names: ["Kunde Geheim"] }],
+      [{ startTime: "08:00", endTime: "09:00", names: ["Organisation Geheim"] }],
       "oidc:alice",
     );
     await store.updateAppointment(appointment!.id, 1, { assigneeId: "oidc:alice" });
@@ -414,7 +414,7 @@ describe("StateStore", () => {
     const publicView = await store.getPublicDashboard();
     expect(publicView.dashboard).toMatchObject({ defaultTheme: "dark", zoomPercent: 250 });
     expect(publicView.appointments[0]).toMatchObject({
-      name: "Kunde Geheim",
+      name: "Organisation Geheim",
       assigneeName: "Alice Beispiel",
     });
 

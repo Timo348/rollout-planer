@@ -6,11 +6,11 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 
 - Authentik-Anmeldung über OAuth2/OpenID Connect mit Authorization Code, PKCE, `state` und `nonce`
 - optionaler, ausschließlich per Entwicklungsmodus freischaltbarer Dev-Login
-- lokaler Administrator-Zugang mit Benutzername und Passwort (Standard `admin`/`admin`, per Umgebungsvariable änderbar)
-- alle angemeldeten Benutzer dürfen Termine planen und verwalten
-- lokale Benutzerverwaltung für Mitglieder der Authentik-Gruppe `rollout-planner-admin`
-- administrativ aktivierbare Vorbereiter-Rolle mit eigener Terminprüfung
-- offene Vorbereitungen werden Vorbereitern rot angezeigt und per Haken als vorbereitet markiert
+- lokales Administrationskonto mit Anmeldename und Passwort (Standard `admin`/`admin`, per Umgebungsvariable änderbar)
+- alle angemeldeten Personen dürfen Termine planen und verwalten
+- lokale Profilverwaltung für Mitglieder der Authentik-Gruppe `rollout-planner-admin`
+- administrativ aktivierbare Vorbereitungsrolle mit eigener Terminprüfung
+- offene Vorbereitungen erscheinen für die Vorbereitungsrolle rot und lassen sich per Haken als vorbereitet markieren
 - eigenes Profilbild per Upload (JPEG, PNG oder WebP bis 20 MB) mit Initialen als Fallback
 - fünf Planungstage ab heute; Wochenenden und Feiertage werden bei den Folgetagen übersprungen
 - feste Uhrzeiten 08–09, 09–10, 10–11, 11–12, 12–13 und 13–14 Uhr
@@ -18,16 +18,16 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - Schieberegler für 1–4 Termine sowie manuelle Sonderanzahl bis 50
 - Offline-Berechnung der gesetzlichen Feiertage in Baden-Württemberg
 - PostgreSQL-Datenbank als eigener Compose-Dienst; bestehender JSON-Bestand wird beim ersten Start automatisch importiert
-- Historie für Admins: Entfernte oder vergangene Termine werden pro Tag in einer eigenen Datenbanktabelle (`history_JJJJ_MM_TT`) mit Benutzer, Terminname und Uhrzeit archiviert
+- Historie für die Administration: Entfernte oder vergangene Termine werden pro Tag in einer eigenen Datenbanktabelle (`history_JJJJ_MM_TT`) mit zugewiesener Person, Terminname und Uhrzeit archiviert
 - tägliche Termin-E-Mail um 07:00 Uhr (Europe/Berlin) als Kalendereinladung pro Termin (iCal mit Annehmen/Ablehnen) an die in Authentik hinterlegte Mailadresse, sobald SMTP konfiguriert ist
-- manueller Versand der Tagesagenda per Button „Terminmail heute senden“ neben der Benutzerverwaltung (nur für Admins mit der Authentik-Gruppe `rollout-planner-admin`)
+- manueller Versand der Tagesagenda per Button „Terminmail heute senden“ neben der Profilverwaltung (nur mit Administrationsberechtigung über die Authentik-Gruppe `rollout-planner-admin`)
 - Rückblick auf vergangene Tage über die Navigation: archivierte Termine inklusive Zuweisung pro Tag einsehen
-- Statistik für Admins (Authentik-Gruppe `rollout-planner-admin`) im Arbeitsbereich: durchgeführte Termine pro Person für die letzten 14 Tage, den aktuellen Monat oder insgesamt, mit manueller Plus/Minus-Korrektur; die Zählung aktualisiert sich automatisch mit der täglichen Archivierung
-- Änderungsmodul für alle Benutzer: Alle angemeldeten Benutzer veröffentlichen Meldungen mit bis zu 125 Wörtern; nur Admins dürfen sie löschen. Nach 21 Tagen wechseln Meldungen automatisch von „Aktuelles“ nach „Allgemeines“ und neue Meldungen werden benutzerspezifisch mit `!` markiert
+- Statistik mit Administrationsberechtigung (Authentik-Gruppe `rollout-planner-admin`) im Arbeitsbereich: durchgeführte Termine pro Person für die letzten 14 Tage, den aktuellen Monat oder insgesamt, mit manueller Plus/Minus-Korrektur; die Zählung aktualisiert sich automatisch mit der täglichen Archivierung
+- Änderungsmodul für alle Personen: Alle angemeldeten Personen veröffentlichen Meldungen mit bis zu 125 Wörtern; löschen darf sie nur die Administration. Nach 21 Tagen wechseln Meldungen automatisch von „Aktuelles“ nach „Allgemeines“ und neue Meldungen werden pro Profil mit `!` markiert
 - optionaler Punkt „Anleitung“ in der linken Navigation; das Ziel wird mit `GUIDE_URL` in `.env`/Compose konfiguriert und in einem neuen Tab geöffnet
 - mehrere frei benennbare, öffentliche Termin-Dashboards unter `/public/<kurzlink>` mit eigener Datenschutz-, Zeitraum-, Trend-, Aktualisierungs-, Standardmodus-, Zoom- und 14-Tage-Podium-Konfiguration; das Podium zeigt ausschließlich die Profilbilder der Top 3, `/public` zeigt das festgelegte Standard-Dashboard und nutzt auf TV-Bildschirmen die volle Fläche ohne Seiten-Scrollbar
 - responsive Bedienung für Desktop, iPad/Tablet und Smartphone einschließlich mobiler Navigation, scrollbarer Terminplanung und angepasster Dialoge
-- tägliche Termin-E-Mail pro Benutzer individuell abbestellbar (Umschalter im Profilmenü)
+- tägliche Termin-E-Mail pro Person individuell abbestellbar (Umschalter im Profilmenü)
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
 ## Schnellstart im Entwicklungsmodus
@@ -55,7 +55,7 @@ Im Produktionsmodus bleibt der Dev-Endpunkt gesperrt, selbst wenn versehentlich 
 1. In Authentik eine Anwendung mit einem OAuth2/OIDC-Provider erstellen.
 2. Als Redirect-URI exakt `https://<interne-app-adresse>/auth/callback` hinterlegen.
 3. Die Scopes `openid`, `profile` und `email` freigeben. Das `profile`-Mapping muss den Claim `groups` als Liste im ID-Token ausgeben.
-4. In Authentik die Gruppe `rollout-planner-admin` anlegen und alle Personen hinzufügen, die Benutzer aus dem Rollout Planer entfernen dürfen.
+4. In Authentik die Gruppe `rollout-planner-admin` anlegen und alle Konten hinzufügen, die Profile aus dem Rollout Planer entfernen dürfen.
 5. `.env.example` nach `.env` kopieren und mindestens diese Werte setzen:
 
 ```dotenv
@@ -77,9 +77,9 @@ GUIDE_URL=https://wiki.intern.example/rollout-anleitung
 
 Authentik selbst ist nicht Bestandteil dieser Compose-Datei; die Anwendung verbindet sich mit der bereits vorhandenen internen Instanz.
 
-## Lokaler Administrator-Zugang
+## Lokales Administrationskonto
 
-Zusätzlich zu Authentik gibt es einen lokalen Administrator-Zugang mit Benutzername und Passwort direkt auf der Anmeldeseite. Standard ist `admin`/`admin`; das Konto erhält die Berechtigung zur Benutzerverwaltung und erscheint als Benutzer `Administrator`. Zum Ändern oder Abschalten:
+Zusätzlich zu Authentik gibt es ein lokales Administrationskonto mit Anmeldename und Passwort direkt auf der Anmeldeseite. Standard ist `admin`/`admin`; das Konto erhält die Berechtigung zur Profilverwaltung und erscheint als Profil `Administration`. Zum Ändern oder Abschalten:
 
 ```dotenv
 ADMIN_LOGIN_ENABLED=true
@@ -87,25 +87,25 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=<eigenes-passwort>
 ```
 
-Beim Deaktivieren (`ADMIN_LOGIN_ENABLED=false`) verlieren bestehende Administrator-Sitzungen sofort ihre Gültigkeit. Der Zugang ist für das interne Netz gedacht — in Produktion gehört mindestens ein eigenes Passwort her.
+Beim Deaktivieren (`ADMIN_LOGIN_ENABLED=false`) verlieren bestehende Sitzungen des Administrationskontos sofort ihre Gültigkeit. Der Zugang ist für das interne Netz gedacht — in Produktion gehört mindestens ein eigenes Passwort her.
 
-## Benutzerverwaltung
+## Profilverwaltung
 
-Mitglieder der Authentik-Gruppe `rollout-planner-admin` sehen neben „Termine erstellen“ die Benutzerverwaltung. Die Berechtigung wird aus dem verifizierten Gruppen-Claim abgeleitet, in der signierten App-Sitzung gespeichert und zusätzlich bei jeder Löschanfrage serverseitig geprüft. Nach dem Update oder einer Gruppenänderung müssen sich betroffene Administratoren einmal ab- und wieder anmelden.
+Mitglieder der Authentik-Gruppe `rollout-planner-admin` sehen neben „Termine erstellen“ die Profilverwaltung. Die Berechtigung wird aus dem verifizierten Gruppen-Claim abgeleitet, in der signierten App-Sitzung gespeichert und zusätzlich bei jeder Löschanfrage serverseitig geprüft. Nach dem Update oder einer Gruppenänderung müssen sich betroffene Personen einmal ab- und wieder anmelden.
 
-„Benutzer löschen“ entfernt ausschließlich das lokale Profil aus dem Rollout Planer. Dabei wird das Profilbild der Person entfernt; ihre noch zugewiesenen Termine bleiben bestehen und werden wieder frei. Das Authentik-Konto selbst wird nicht verändert. Solange das Konto in Authentik weiterhin Zugriff besitzt, kann sich die Person erneut anmelden und wird dann lokal wieder angelegt. Das eigene aktuell angemeldete Profil kann nicht gelöscht werden.
+„Profil löschen“ entfernt ausschließlich das lokale Profil aus dem Rollout Planer. Dabei wird das Profilbild der Person entfernt; ihre noch zugewiesenen Termine bleiben bestehen und werden wieder frei. Das Authentik-Konto selbst wird nicht verändert. Solange das Konto in Authentik weiterhin Zugriff besitzt, kann sich die Person erneut anmelden und wird dann lokal wieder angelegt. Das eigene aktuell angemeldete Profil kann nicht gelöscht werden.
 
 Der optionale Dev-Login erhält die Verwaltungsberechtigung nur im ausdrücklich aktivierten Entwicklungsmodus, damit der Ablauf lokal getestet werden kann. Im Produktionsmodus bleibt dieser Zugang vollständig deaktiviert.
 
 ## Tägliche Termin-E-Mail
 
-Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag pro Termin eine eigene E-Mail. Empfängeradresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Jeder Termin steckt als eigene Kalendereinladung (`rollout-termin-<datum>-<uhrzeit>.ics`, iCal `METHOD:REQUEST`) im Anhang — bewusst eine Einladung pro Mail, weil Kalender-Clients bei `METHOD:REQUEST` nur einen Termin pro Nachricht zuverlässig übernehmen. Die Einladung kann im Kalender-Client direkt angenommen oder abgelehnt werden; die Antwort bleibt dabei lokal im Kalender (`RSVP=FALSE`), es geht keine Antwort-E-Mail an den Organisator raus. Als Organisator gilt die `SMTP_FROM`-Adresse. Benutzer ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert. Jeder Benutzer kann den Empfang für sich im Profilmenü (Umschalter „Tägliche Termin-E-Mail“) deaktivieren und wieder aktivieren; die Einstellung bleibt über Anmeldungen hinweg erhalten. Admins (Authentik-Gruppe `rollout-planner-admin`) können denselben Versand jederzeit manuell über den Button „Terminmail heute senden“ neben der Benutzerverwaltung auslösen (`POST /api/agenda/send`); ohne SMTP-Konfiguration antwortet der Endpunkt mit einer Fehlermeldung.
+Ist `SMTP_HOST` gesetzt, versendet die Anwendung jeden Morgen um 07:00 Uhr (Zeitzone Europe/Berlin) an jede Person mit zugewiesenen Terminen am selben Tag pro Termin eine eigene E-Mail. Zieladresse ist die Mailadresse aus dem Authentik-Profil (`email`-Claim). Jeder Termin steckt als eigene Kalendereinladung (`rollout-termin-<datum>-<uhrzeit>.ics`, iCal `METHOD:REQUEST`) im Anhang — bewusst eine Einladung pro Mail, weil Kalender-Clients bei `METHOD:REQUEST` nur einen Termin pro Nachricht zuverlässig übernehmen. Die Einladung kann im Kalender-Client direkt angenommen oder abgelehnt werden; die Antwort bleibt dabei lokal im Kalender (`RSVP=FALSE`), es geht keine Antwort-E-Mail an die absendende Stelle. Als Absenderadresse gilt `SMTP_FROM`. Profile ohne hinterlegte Mailadresse und Tage ohne zugewiesene Termine werden übersprungen; ohne `SMTP_HOST` bleibt der Versand vollständig deaktiviert. Jede angemeldete Person kann den Empfang im Profilmenü (Umschalter „Tägliche Termin-E-Mail“) deaktivieren und wieder aktivieren; die Einstellung bleibt über Anmeldungen hinweg erhalten. Personen mit Administrationsberechtigung (Authentik-Gruppe `rollout-planner-admin`) können denselben Versand jederzeit manuell über den Button „Terminmail heute senden“ neben der Profilverwaltung auslösen (`POST /api/agenda/send`); ohne SMTP-Konfiguration antwortet der Endpunkt mit einer Fehlermeldung.
 
 ```dotenv
 SMTP_HOST=mail.intern.example
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER=<smtp-benutzer>
+SMTP_USER=<smtp-anmeldename>
 SMTP_PASS=<smtp-passwort>
 SMTP_FROM=rollout-planer@intern.example
 ```
@@ -117,14 +117,14 @@ Seit Version 3.0 speichert die Anwendung in einer PostgreSQL-Datenbank, die als 
 Gespeichert werden:
 
 - Termine für die fünf angezeigten Planungstage (Tabelle `appointments`)
-- Benutzer, die sich mindestens einmal erfolgreich angemeldet haben (Tabelle `users`)
-- veröffentlichte Änderungsmeldungen und der benutzerspezifische Lesestatus (Tabellen `change_notices` und `change_notice_reads`)
+- Profile von Personen, die sich mindestens einmal erfolgreich angemeldet haben (Tabelle `users`)
+- veröffentlichte Änderungsmeldungen und der profilspezifische Lesestatus (Tabellen `change_notices` und `change_notice_reads`)
 - Konfigurationen der öffentlichen Termin-Dashboards (Tabelle `public_dashboards`)
 - Profilbilder im Unterordner `avatars` des Docker-Volumes `rollout-planer-data` (`/app/data`)
 
 ### Historie pro Tag
 
-Vergangene, aus dem Planungsfenster fallende oder gelöschte Termine werden nicht mehr verworfen, sondern vor dem Entfernen archiviert: Für jeden Tag gibt es eine eigene Tabelle `history_JJJJ_MM_TT` (z. B. `history_2026_07_20`). Jede Zeile enthält Termin-ID, Uhrzeit (`start_time`/`end_time`), Terminname, den zuletzt zugewiesenen Benutzer (ID, Benutzername und Anzeigename als Momentaufnahme), Ersteller, Zeitpunkt der Archivierung und den Grund (`abgelaufen`, `planungsfenster`, `gelöscht`, `dev-bereinigung`). Darauf lässt sich später eine Admin-Historie aufsetzen.
+Vergangene, aus dem Planungsfenster fallende oder gelöschte Termine werden nicht mehr verworfen, sondern vor dem Entfernen archiviert: Für jeden Tag gibt es eine eigene Tabelle `history_JJJJ_MM_TT` (z. B. `history_2026_07_20`). Jede Zeile enthält Termin-ID, Uhrzeit (`start_time`/`end_time`), Terminname, die zuletzt zugewiesene Person (ID, Anmeldename und Anzeigename als Momentaufnahme), die erstellende Person, den Zeitpunkt der Archivierung und den Grund (`abgelaufen`, `planungsfenster`, `gelöscht`, `dev-bereinigung`). Darauf lässt sich später eine Administrationshistorie aufsetzen.
 
 ### Migration von Version 2
 
@@ -138,9 +138,9 @@ Das Skript `backup.sh` erstellt bei laufender Anwendung einen konsistenten, komp
 
 - alle aktuell eingetragenen Termine (`appointments`),
 - alle Tages-Historientabellen (`history_YYYY_MM_DD`),
-- die Benutzerzeilen (`users`), weil Namen, Zuordnungen und `stats_adjustment` für die Statistik benötigt werden.
+- die Profilzeilen (`users`), weil Namen, Zuordnungen und `stats_adjustment` für die Statistik benötigt werden.
 
-Profilbilder und andere Daten aus dem Volume `rollout-planer-data` gehören bewusst nicht zu diesem Backup. Der Vorbereiter-Status wird zwar zusammen mit der Benutzerzeile gespeichert, ist für die Wiederherstellung der Statistik aber ohne Bedeutung.
+Profilbilder und andere Daten aus dem Volume `rollout-planer-data` gehören bewusst nicht zu diesem Backup. Die Vorbereitungsrolle wird zwar zusammen mit der Profilzeile gespeichert, ist für die Wiederherstellung der Statistik aber ohne Bedeutung.
 
 Einmalig ausführbar machen und anschließend starten:
 

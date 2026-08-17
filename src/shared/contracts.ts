@@ -18,7 +18,7 @@ export interface AppUser {
   avatar?: UserAvatar;
   /** false = keine tägliche Termin-E-Mail; ein fehlender Wert bedeutet aktiviert. */
   agendaMailsEnabled?: boolean;
-  /** Manueller Korrekturwert für die Terminstatistik (nur durch Admins änderbar). */
+  /** Manueller Korrekturwert für die Terminstatistik (nur mit Administrationsberechtigung änderbar). */
   statsAdjustment?: number;
 }
 

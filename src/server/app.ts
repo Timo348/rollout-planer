@@ -234,7 +234,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     if (!request.currentPrincipal?.permissions.manageUsers) {
       return reply.code(403).send({
         error: "forbidden",
-        message: "Für die Benutzerverwaltung fehlt die Berechtigung.",
+        message: "Für die Profilverwaltung fehlt die Berechtigung.",
       });
     }
   };
@@ -243,7 +243,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     if (!request.currentPrincipal?.user.isPreparer) {
       return reply.code(403).send({
         error: "forbidden",
-        message: "Für diese Aktion wird die Vorbereiter-Rolle benötigt.",
+        message: "Für diese Aktion wird die Vorbereitungsrolle benötigt.",
       });
     }
   };
@@ -357,7 +357,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     if (payload.username !== config.adminUsername || payload.password !== config.adminPassword) {
       return reply.code(401).send({
         error: "unauthorized",
-        message: "Benutzername oder Passwort ist falsch.",
+        message: "Anmeldename oder Passwort ist falsch.",
       });
     }
     const principal = auth.createAdminUser();
@@ -430,7 +430,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
       if (id === request.currentPrincipal!.user.id) {
         return reply.code(409).send({
           error: "conflict",
-          message: "Das eigene Benutzerkonto kann nicht gelöscht werden.",
+          message: "Das eigene Profil kann nicht gelöscht werden.",
         });
       }
 
@@ -439,7 +439,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
         try {
           await avatars.delete(removed.avatar.key);
         } catch (error) {
-          request.log.warn({ err: error, userId: id }, "Profilbild des gelöschten Benutzers konnte nicht entfernt werden.");
+          request.log.warn({ err: error, userId: id }, "Profilbild des gelöschten Profils konnte nicht entfernt werden.");
         }
       }
       return reply.code(204).send();
@@ -548,7 +548,7 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
   app.get("/api/users/:id/avatar", { preHandler: [authenticate] }, async (request, reply) => {
     const id = z.string().min(1).parse((request.params as { id?: string }).id);
     const user = await store.getUser(id);
-    if (!user.avatar) throw new NotFoundError("Für diesen Benutzer ist kein Profilbild hinterlegt.");
+    if (!user.avatar) throw new NotFoundError("Für dieses Profil ist kein Profilbild hinterlegt.");
     const image = await avatars.read(user.avatar.key);
     if (!image) throw new NotFoundError("Das Profilbild wurde nicht gefunden.");
     return reply
