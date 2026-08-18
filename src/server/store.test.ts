@@ -308,21 +308,39 @@ describe("StateStore", () => {
     });
   });
 
-  it("merkt sich die Mail-Einstellung auch über eine erneute Anmeldung hinweg", async () => {
+  it("merkt sich unabhängige Mail-Einstellungen auch über Anmeldung und Neustart hinweg", async () => {
     const store = makeStore(() => new Date("2026-07-15T08:00:00.000Z"));
     await store.initialize();
     await store.upsertUser(user());
 
     const updated = await store.setAgendaMailsEnabled("oidc:alice", false);
     expect(updated.agendaMailsEnabled).toBe(false);
+    expect(updated.changeNoticeMailsEnabled).toBeUndefined();
+
+    const changesDisabled = await store.setChangeNoticeMailsEnabled("oidc:alice", false);
+    expect(changesDisabled.agendaMailsEnabled).toBe(false);
+    expect(changesDisabled.changeNoticeMailsEnabled).toBe(false);
 
     // Eine erneute OIDC-Anmeldung liefert das Profil ohne die Einstellung;
-    // der gespeicherte Wert muss erhalten bleiben.
+    // die gespeicherten Werte müssen erhalten bleiben.
     await store.upsertUser(user());
-    expect((await store.getUser("oidc:alice")).agendaMailsEnabled).toBe(false);
+    expect(await store.getUser("oidc:alice")).toMatchObject({
+      agendaMailsEnabled: false,
+      changeNoticeMailsEnabled: false,
+    });
 
-    const reenabled = await store.setAgendaMailsEnabled("oidc:alice", true);
-    expect(reenabled.agendaMailsEnabled).toBe(true);
+    const changesEnabled = await store.updateMailPreferences("oidc:alice", {
+      changeNoticeMailsEnabled: true,
+    });
+    expect(changesEnabled.agendaMailsEnabled).toBe(false);
+    expect(changesEnabled.changeNoticeMailsEnabled).toBe(true);
+
+    const reloaded = makeStore(() => new Date("2026-07-15T08:00:00.000Z"));
+    await reloaded.initialize();
+    expect(await reloaded.getUser("oidc:alice")).toMatchObject({
+      agendaMailsEnabled: false,
+      changeNoticeMailsEnabled: true,
+    });
   });
 
   it("zählt durchgeführte Termine pro Profil und wendet manuelle Korrekturen an", async () => {

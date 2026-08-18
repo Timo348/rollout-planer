@@ -23,11 +23,11 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - manueller Versand der Tagesagenda per Button „Terminmail heute senden“ neben der Profilverwaltung (nur mit Administrationsberechtigung über die Authentik-Gruppe `rollout-planner-admin`)
 - Rückblick auf vergangene Tage über die Navigation: archivierte Termine inklusive Zuweisung pro Tag einsehen
 - Statistik mit Administrationsberechtigung (Authentik-Gruppe `rollout-planner-admin`) im Arbeitsbereich: durchgeführte Termine pro Person für die letzten 14 Tage, den aktuellen Monat oder insgesamt, mit manueller Plus/Minus-Korrektur; die Zählung aktualisiert sich automatisch mit der täglichen Archivierung
-- Änderungsmodul für alle Personen: Alle angemeldeten Personen veröffentlichen Meldungen mit bis zu 125 Wörtern; löschen darf sie nur die Administration. Nach 21 Tagen wechseln Meldungen automatisch von „Aktuelles“ nach „Allgemeines“ und neue Meldungen werden pro Profil mit `!` markiert
+- Änderungsmodul für alle Personen: Alle angemeldeten Personen veröffentlichen Meldungen mit bis zu 125 Wörtern; löschen darf sie nur die Administration. Nach 21 Tagen wechseln Meldungen automatisch von „Aktuelles“ nach „Allgemeines“, neue Meldungen werden pro Profil mit `!` markiert und bei konfiguriertem SMTP zusätzlich per E-Mail angekündigt
 - optionaler Punkt „Anleitung“ in der linken Navigation; das Ziel wird mit `GUIDE_URL` in `.env`/Compose konfiguriert und in einem neuen Tab geöffnet
 - mehrere frei benennbare, öffentliche Termin-Dashboards unter `/public/<kurzlink>` mit eigener Datenschutz-, Zeitraum-, Trend-, Aktualisierungs-, Standardmodus-, Zoom- und 14-Tage-Podium-Konfiguration; das Podium zeigt ausschließlich die Profilbilder der Top 3, `/public` zeigt das festgelegte Standard-Dashboard und nutzt auf TV-Bildschirmen die volle Fläche ohne Seiten-Scrollbar
 - responsive Bedienung für Desktop, iPad/Tablet und Smartphone einschließlich mobiler Navigation, scrollbarer Terminplanung und angepasster Dialoge
-- tägliche Termin-E-Mail pro Person individuell abbestellbar (Umschalter im Profilmenü)
+- tägliche Termin-E-Mail und E-Mail bei neuen Änderungen pro Person unabhängig voneinander abbestellbar (Umschalter im Profilmenü)
 - Schutz vor verlorenen gleichzeitigen Änderungen durch Versionsprüfung
 
 ## Schnellstart im Entwicklungsmodus
@@ -109,6 +109,10 @@ SMTP_USER=<smtp-anmeldename>
 SMTP_PASS=<smtp-passwort>
 SMTP_FROM=rollout-planer@intern.example
 ```
+
+### E-Mail bei neuen Änderungen
+
+Beim Veröffentlichen einer neuen Meldung versendet die Anwendung über dieselbe SMTP-Konfiguration eine Benachrichtigung an alle anderen Profile mit hinterlegter Authentik-Mailadresse. Diese Benachrichtigung ist standardmäßig aktiviert und kann im Profilmenü unabhängig von der täglichen Termin-E-Mail deaktiviert und wieder aktiviert werden. Der Versand läuft nach dem Speichern im Hintergrund; einzelne SMTP-Fehler verhindern die Veröffentlichung der Meldung nicht.
 
 ## Datenspeicherung
 

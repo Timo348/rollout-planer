@@ -46,6 +46,7 @@ const userSchema = z.object({
   }).optional(),
   isPreparer: z.boolean().optional(),
   agendaMailsEnabled: z.boolean().optional(),
+  changeNoticeMailsEnabled: z.boolean().optional(),
   statsAdjustment: z.number().int().optional(),
 });
 
@@ -118,6 +119,11 @@ export interface AppointmentPatch {
   startTime?: string;
   endTime?: string;
   assigneeId?: string | null;
+}
+
+export interface MailPreferencesPatch {
+  agendaMailsEnabled?: boolean;
+  changeNoticeMailsEnabled?: boolean;
 }
 
 export interface DailyAssignment {
@@ -241,6 +247,9 @@ export class StateStore {
           ...(existing.agendaMailsEnabled !== undefined
             ? { agendaMailsEnabled: existing.agendaMailsEnabled }
             : {}),
+          ...(existing.changeNoticeMailsEnabled !== undefined
+            ? { changeNoticeMailsEnabled: existing.changeNoticeMailsEnabled }
+            : {}),
           ...(existing.statsAdjustment !== undefined
             ? { statsAdjustment: existing.statsAdjustment }
             : {}),
@@ -261,6 +270,10 @@ export class StateStore {
     });
   }
 
+  async listUsers(): Promise<AppUser[]> {
+    return this.enqueue(async () => structuredClone(this.state.users));
+  }
+
   async setUserAvatar(id: string, avatar: AppUser["avatar"] | null): Promise<AppUser> {
     return this.enqueue(async () => {
       const index = this.state.users.findIndex((entry) => entry.id === id);
@@ -276,10 +289,26 @@ export class StateStore {
   }
 
   async setAgendaMailsEnabled(id: string, enabled: boolean): Promise<AppUser> {
+    return this.updateMailPreferences(id, { agendaMailsEnabled: enabled });
+  }
+
+  async setChangeNoticeMailsEnabled(id: string, enabled: boolean): Promise<AppUser> {
+    return this.updateMailPreferences(id, { changeNoticeMailsEnabled: enabled });
+  }
+
+  async updateMailPreferences(id: string, patch: MailPreferencesPatch): Promise<AppUser> {
     return this.enqueue(async () => {
       const index = this.state.users.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError("Das Profil wurde nicht gefunden.");
-      const updated = { ...this.state.users[index]!, agendaMailsEnabled: enabled };
+      const updated = {
+        ...this.state.users[index]!,
+        ...(patch.agendaMailsEnabled !== undefined
+          ? { agendaMailsEnabled: patch.agendaMailsEnabled }
+          : {}),
+        ...(patch.changeNoticeMailsEnabled !== undefined
+          ? { changeNoticeMailsEnabled: patch.changeNoticeMailsEnabled }
+          : {}),
+      };
       this.state.users[index] = updated;
       await this.persist();
       return structuredClone(updated);
@@ -915,6 +944,9 @@ export class StateStore {
       ...(row.agenda_mails_enabled != null
         ? { agendaMailsEnabled: Boolean(row.agenda_mails_enabled) }
         : {}),
+      ...(row.change_notice_mails_enabled != null
+        ? { changeNoticeMailsEnabled: Boolean(row.change_notice_mails_enabled) }
+        : {}),
       ...(row.stats_adjustment != null
         ? { statsAdjustment: Number(row.stats_adjustment) }
         : {}),
@@ -988,8 +1020,8 @@ export class StateStore {
           `INSERT INTO users (
             id, username, display_name, email, source, last_seen_at,
             avatar_key, avatar_mime_type, avatar_updated_at, agenda_mails_enabled,
-            stats_adjustment, is_preparer
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            change_notice_mails_enabled, stats_adjustment, is_preparer
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             user.id,
             user.username,
@@ -1001,6 +1033,7 @@ export class StateStore {
             user.avatar?.mimeType ?? null,
             user.avatar?.updatedAt ?? null,
             user.agendaMailsEnabled ?? null,
+            user.changeNoticeMailsEnabled ?? null,
             user.statsAdjustment ?? null,
             user.isPreparer,
           ],

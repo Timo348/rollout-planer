@@ -2,11 +2,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppUser, BootstrapResponse } from "../shared/contracts.js";
 import { buildApp } from "./app.js";
 import { AuthService, SESSION_COOKIE, type SessionPrincipal } from "./auth.js";
 import type { AppConfig } from "./config.js";
+import type { MailMessage } from "./mailer.js";
 import { StateStore } from "./store.js";
 import { createTestDatabase, resetTestDatabase } from "./testdb.js";
 
@@ -246,7 +247,7 @@ describe("Rollout API", () => {
     expect(withoutSmtp.json<{ message: string }>().message).toContain("SMTP_HOST");
   });
 
-  it("liefert archivierte Termine vergangener Tage und speichert die eigene Mail-Einstellung", async () => {
+  it("liefert archivierte Termine vergangener Tage und speichert Mail-Einstellungen unabhängig", async () => {
     const config = await testConfig(true);
     await writeFile(config.dataFile, JSON.stringify({
       schemaVersion: 4,
@@ -296,9 +297,36 @@ describe("Rollout API", () => {
     });
     expect(updated.statusCode).toBe(200);
     expect(updated.json<{ user: AppUser }>().user.agendaMailsEnabled).toBe(false);
+    expect(updated.json<{ user: AppUser }>().user.changeNoticeMailsEnabled).toBeUndefined();
+
+    const changesUpdated = await app.inject({
+      method: "PUT",
+      url: "/api/users/me/preferences",
+      headers: { cookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { changeNoticeMailsEnabled: false },
+    });
+    expect(changesUpdated.statusCode).toBe(200);
+    expect(changesUpdated.json<{ user: AppUser }>().user).toMatchObject({
+      agendaMailsEnabled: false,
+      changeNoticeMailsEnabled: false,
+    });
+
+    const agendaReenabled = await app.inject({
+      method: "PUT",
+      url: "/api/users/me/preferences",
+      headers: { cookie, origin: "http://localhost:8080", "content-type": "application/json" },
+      payload: { agendaMailsEnabled: true },
+    });
+    expect(agendaReenabled.json<{ user: AppUser }>().user).toMatchObject({
+      agendaMailsEnabled: true,
+      changeNoticeMailsEnabled: false,
+    });
 
     const bootstrap = await app.inject({ method: "GET", url: "/api/bootstrap", headers: { cookie } });
-    expect(bootstrap.json<BootstrapResponse>().currentUser.agendaMailsEnabled).toBe(false);
+    expect(bootstrap.json<BootstrapResponse>().currentUser).toMatchObject({
+      agendaMailsEnabled: true,
+      changeNoticeMailsEnabled: false,
+    });
   });
 
   it("liefert die Terminstatistik nur mit Administrationsberechtigung und lässt manuelle Korrekturen zu", async () => {
@@ -662,6 +690,85 @@ describe("Rollout API", () => {
       headers: { cookie: adminCookie, origin: "http://localhost:8080" },
     });
     expect(deleted.statusCode).toBe(204);
+  });
+
+  it("versendet neue Änderungen als einzelne Textmails und bestätigt sie trotz Teilfehler", async () => {
+    const config = await testConfig(true);
+    config.smtp = {
+      host: "smtp.example.test",
+      port: 587,
+      secure: false,
+      user: null,
+      pass: null,
+      from: "rollout-planer@example.test",
+    };
+    const store = new StateStore(
+      config.databaseUrl,
+      () => new Date("2026-08-18T12:30:00.000Z"),
+      true,
+      config.dataFile,
+    );
+    await store.initialize();
+    const author = { ...oidcUser("oidc:author", "author"), email: "author@example.test" };
+    const alice = { ...oidcUser("oidc:alice", "alice"), email: "alice@example.test" };
+    const broken = { ...oidcUser("oidc:broken", "broken"), email: "broken@example.test" };
+    const disabled = { ...oidcUser("oidc:disabled", "disabled"), email: "disabled@example.test" };
+    await store.upsertUser(author);
+    await store.upsertUser(alice);
+    await store.upsertUser(broken);
+    await store.upsertUser(disabled);
+    await store.upsertUser(oidcUser("oidc:no-mail", "no-mail"));
+    await store.setChangeNoticeMailsEnabled(disabled.id, false);
+
+    const delivered: MailMessage[] = [];
+    let releaseBrokenMail!: () => void;
+    const brokenMailReleased = new Promise<void>((resolve) => {
+      releaseBrokenMail = resolve;
+    });
+    const transport = vi.fn(async (mail: MailMessage) => {
+      if (mail.to === broken.email) {
+        await brokenMailReleased;
+        throw new Error("SMTP nicht erreichbar");
+      }
+      delivered.push(mail);
+    });
+    const app = await buildApp(config, store, transport);
+    apps.push(app);
+    const errorLog = vi.spyOn(app.log, "error");
+    const authorCookie = await sessionCookie(config, {
+      user: author,
+      permissions: { manageUsers: false },
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/changes",
+      headers: {
+        cookie: authorCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { content: "Die neue Anleitung ist jetzt verfügbar." },
+    });
+
+    expect(created.statusCode).toBe(201);
+    const noticeId = created.json<{ notice: { id: string } }>().notice.id;
+    await vi.waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+    expect(delivered).toEqual([
+      {
+        to: alice.email,
+        subject: "Neue Änderung im Rollout Planer",
+        text: expect.stringContaining("Die neue Anleitung ist jetzt verfügbar."),
+      },
+    ]);
+    expect(delivered[0]).not.toHaveProperty("ics");
+    expect(errorLog).not.toHaveBeenCalled();
+    releaseBrokenMail();
+    await vi.waitFor(() => expect(errorLog).toHaveBeenCalledWith(
+      { noticeId, sent: 1, failed: 1 },
+      "Ein Teil der E-Mails zur neuen Änderung konnte nicht versendet werden.",
+    ));
+    expect((await store.viewChangeNotices(author.id)).current).toHaveLength(1);
   });
 
   it("stellt mehrere öffentliche Dashboards bereit und schützt ihre Verwaltung", async () => {

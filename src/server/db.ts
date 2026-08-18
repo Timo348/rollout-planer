@@ -38,6 +38,8 @@ export async function openDatabase(connectionString: string): Promise<Database> 
   await pool.query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_source_check");
   // Bestand älterer Versionen: optionale Mail-Einstellung der Profile nachrüsten.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS agenda_mails_enabled BOOLEAN");
+  // Bestand älterer Versionen: optionale Mail-Einstellung für Änderungsmeldungen nachrüsten.
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS change_notice_mails_enabled BOOLEAN");
   // Bestand älterer Versionen: manuellen Statistik-Korrekturwert nachrüsten.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS stats_adjustment INTEGER");
   // Bestand älterer Versionen: Vorbereitungsrolle nachrüsten.

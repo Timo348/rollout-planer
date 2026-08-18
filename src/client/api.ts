@@ -119,10 +119,13 @@ export const api = {
     request<{ sent: number }>("/api/agenda/send", { method: "POST" }),
   getHistory: (date: string) =>
     request<{ entries: AppointmentHistoryEntry[] }>(`/api/history/${encodeURIComponent(date)}`),
-  updatePreferences: (agendaMailsEnabled: boolean) =>
+  updatePreferences: (preferences: {
+    agendaMailsEnabled?: boolean;
+    changeNoticeMailsEnabled?: boolean;
+  }) =>
     request<{ user: AppUser }>("/api/users/me/preferences", {
       method: "PUT",
-      body: JSON.stringify({ agendaMailsEnabled }),
+      body: JSON.stringify(preferences),
     }),
   getAssignmentStats: (period: AssignmentStatsPeriod) =>
     request<{ entries: AssignmentStatsEntry[] }>(`/api/stats/assignments?period=${period}`),

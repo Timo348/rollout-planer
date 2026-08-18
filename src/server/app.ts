@@ -21,8 +21,13 @@ import {
 } from "./avatars.js";
 import type { AppConfig } from "./config.js";
 import { MAX_APPOINTMENTS_PER_SLOT } from "./constants.js";
+import { sendChangeNoticeMails } from "./change-mail.js";
 import { addDays, dateInTimeZone } from "./dates.js";
-import { createSmtpTransport } from "./mailer.js";
+import {
+  createSmtpTransport,
+  type MailMessage,
+  type MailTransport,
+} from "./mailer.js";
 import { sendDailyAgendas, startDailyAgendaScheduler } from "./scheduler.js";
 import {
   ConflictError,
@@ -140,7 +145,11 @@ function issues(error: ZodError): Array<{ path: string; message: string }> {
   return error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message }));
 }
 
-export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
+export async function buildApp(
+  config: AppConfig,
+  storeOverride?: StateStore,
+  mailTransportOverride?: MailTransport<MailMessage>,
+) {
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
@@ -159,11 +168,13 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
   app.addHook("onClose", async () => {
     await store.close();
   });
-  const agendaTransport = config.smtp ? createSmtpTransport(config.smtp) : null;
-  if (config.smtp && agendaTransport) {
+  const mailTransport = config.smtp
+    ? mailTransportOverride ?? createSmtpTransport(config.smtp)
+    : null;
+  if (config.smtp && mailTransport) {
     const stopAgendaScheduler = startDailyAgendaScheduler(
       store,
-      agendaTransport,
+      mailTransport,
       config.smtp.from,
       app.log,
     );
@@ -460,13 +471,13 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     "/api/agenda/send",
     { preHandler: [authenticate, verifyOrigin, requireUserAdmin] },
     async (_request, reply) => {
-      if (!config.smtp || !agendaTransport) {
+      if (!config.smtp || !mailTransport) {
         return reply.code(503).send({
           error: "smtp_unavailable",
           message: "Der E-Mail-Versand ist nicht konfiguriert. Bitte SMTP_HOST setzen.",
         });
       }
-      const sent = await sendDailyAgendas(store, agendaTransport, config.smtp.from);
+      const sent = await sendDailyAgendas(store, mailTransport, config.smtp.from);
       return { sent };
     },
   );
@@ -531,6 +542,33 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
         content,
         request.currentPrincipal!.user,
       );
+      if (mailTransport) {
+        void (async () => {
+          try {
+            const result = await sendChangeNoticeMails(
+              await store.listUsers(),
+              notice,
+              mailTransport,
+            );
+            if (result.failed > 0) {
+              app.log.error(
+                { noticeId: notice.id, sent: result.sent, failed: result.failed },
+                "Ein Teil der E-Mails zur neuen Änderung konnte nicht versendet werden.",
+              );
+            } else {
+              app.log.info(
+                { noticeId: notice.id, sent: result.sent },
+                "E-Mails zur neuen Änderung versendet.",
+              );
+            }
+          } catch (error) {
+            app.log.error(
+              { err: error, noticeId: notice.id },
+              "Die E-Mails zur neuen Änderung konnten nicht versendet werden.",
+            );
+          }
+        })();
+      }
       return reply.code(201).send({ notice });
     },
   );
@@ -592,18 +630,27 @@ export async function buildApp(config: AppConfig, storeOverride?: StateStore) {
     },
   );
 
-  const preferencesSchema = z.object({
-    agendaMailsEnabled: z.boolean(),
-  });
+  const preferencesSchema = z
+    .object({
+      agendaMailsEnabled: z.boolean().optional(),
+      changeNoticeMailsEnabled: z.boolean().optional(),
+    })
+    .strict()
+    .refine(
+      (value) =>
+        value.agendaMailsEnabled !== undefined ||
+        value.changeNoticeMailsEnabled !== undefined,
+      { message: "Mindestens eine Mail-Einstellung muss angegeben werden." },
+    );
 
   app.put(
     "/api/users/me/preferences",
     { preHandler: [authenticate, verifyOrigin] },
     async (request) => {
       const payload = preferencesSchema.parse(request.body);
-      const user = await store.setAgendaMailsEnabled(
+      const user = await store.updateMailPreferences(
         request.currentPrincipal!.user.id,
-        payload.agendaMailsEnabled,
+        payload,
       );
       return { user };
     },

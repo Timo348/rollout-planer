@@ -2,7 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AppUser, Appointment } from "../shared/contracts";
-import { AppointmentCard, ChangesDialog, UserManagementDialog } from "./Dashboard";
+import { AppointmentCard, ChangesDialog, ProfileMailPreferences, UserManagementDialog } from "./Dashboard";
 
 Object.assign(globalThis, { React });
 
@@ -101,5 +101,33 @@ describe("Änderungsmodul", () => {
     expect(markup).toContain("Änderung veröffentlichen");
     expect(markup).toContain("0/125 Wörter");
     expect(markup).toContain("Änderungen werden geladen");
+  });
+});
+
+describe("E-Mail-Einstellungen im Profilmenü", () => {
+  it("zeigt beide unabhängigen Einstellungen standardmäßig aktiviert", () => {
+    const markup = renderToStaticMarkup(React.createElement(ProfileMailPreferences, {
+      busy: false,
+      onAgendaMailsChange: vi.fn(),
+      onChangeNoticeMailsChange: vi.fn(),
+    }));
+
+    expect(markup).toContain("Tägliche Termin-E-Mail");
+    expect(markup).toContain("E-Mail bei neuen Änderungen");
+    expect(markup.match(/type="checkbox"/g)).toHaveLength(2);
+    expect(markup.match(/checked=""/g)).toHaveLength(2);
+  });
+
+  it("bildet die Einstellungen getrennt voneinander ab", () => {
+    const markup = renderToStaticMarkup(React.createElement(ProfileMailPreferences, {
+      agendaMailsEnabled: true,
+      changeNoticeMailsEnabled: false,
+      busy: true,
+      onAgendaMailsChange: vi.fn(),
+      onChangeNoticeMailsChange: vi.fn(),
+    }));
+
+    expect(markup.match(/checked=""/g)).toHaveLength(1);
+    expect(markup.match(/disabled=""/g)).toHaveLength(2);
   });
 });

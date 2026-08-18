@@ -776,6 +776,43 @@ export function ChangesDialog({
   );
 }
 
+export function ProfileMailPreferences({
+  agendaMailsEnabled,
+  changeNoticeMailsEnabled,
+  busy,
+  onAgendaMailsChange,
+  onChangeNoticeMailsChange,
+}: {
+  agendaMailsEnabled?: boolean;
+  changeNoticeMailsEnabled?: boolean;
+  busy: boolean;
+  onAgendaMailsChange: (enabled: boolean) => void;
+  onChangeNoticeMailsChange: (enabled: boolean) => void;
+}) {
+  return (
+    <>
+      <label className="profile-menu__toggle">
+        <input
+          type="checkbox"
+          checked={agendaMailsEnabled !== false}
+          disabled={busy}
+          onChange={(event) => onAgendaMailsChange(event.target.checked)}
+        />
+        <span>Tägliche Termin-E-Mail<small>um 7 Uhr an deine Authentik-Adresse</small></span>
+      </label>
+      <label className="profile-menu__toggle">
+        <input
+          type="checkbox"
+          checked={changeNoticeMailsEnabled !== false}
+          disabled={busy}
+          onChange={(event) => onChangeNoticeMailsChange(event.target.checked)}
+        />
+        <span>E-Mail bei neuen Änderungen<small>bei neuen Meldungen an deine Authentik-Adresse</small></span>
+      </label>
+    </>
+  );
+}
+
 export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; onLoggedOut: () => void }) {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [theme, toggleTheme] = useTheme();
@@ -834,12 +871,21 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
     }
   };
 
-  const toggleAgendaMails = async (enabled: boolean) => {
+  const toggleMailPreference = async (
+    preference: "agendaMailsEnabled" | "changeNoticeMailsEnabled",
+    enabled: boolean,
+  ) => {
     setPreferencesBusy(true);
     try {
-      const { user } = await api.updatePreferences(enabled);
+      const preferences = preference === "agendaMailsEnabled"
+        ? { agendaMailsEnabled: enabled }
+        : { changeNoticeMailsEnabled: enabled };
+      const { user } = await api.updatePreferences(preferences);
       setData((current) => (current ? { ...current, currentUser: user } : current));
-      showToast(enabled ? "Tägliche Termin-E-Mail aktiviert." : "Tägliche Termin-E-Mail deaktiviert.");
+      const label = preference === "agendaMailsEnabled"
+        ? "Tägliche Termin-E-Mail"
+        : "E-Mail bei neuen Änderungen";
+      showToast(`${label} ${enabled ? "aktiviert" : "deaktiviert"}.`);
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) return onLoggedOut();
       showToast(caught instanceof Error ? caught.message : "Die Einstellung konnte nicht gespeichert werden.", "error");
@@ -1088,15 +1134,13 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
                 <UserRoundX size={16} />Bild entfernen
               </button>
             )}
-            <label className="profile-menu__toggle">
-              <input
-                type="checkbox"
-                checked={data.currentUser.agendaMailsEnabled !== false}
-                disabled={preferencesBusy}
-                onChange={(event) => void toggleAgendaMails(event.target.checked)}
-              />
-              <span>Tägliche Termin-E-Mail<small>um 7 Uhr an deine Authentik-Adresse</small></span>
-            </label>
+            <ProfileMailPreferences
+              agendaMailsEnabled={data.currentUser.agendaMailsEnabled}
+              changeNoticeMailsEnabled={data.currentUser.changeNoticeMailsEnabled}
+              busy={preferencesBusy}
+              onAgendaMailsChange={(enabled) => void toggleMailPreference("agendaMailsEnabled", enabled)}
+              onChangeNoticeMailsChange={(enabled) => void toggleMailPreference("changeNoticeMailsEnabled", enabled)}
+            />
             <small className="profile-menu__hint">JPEG, PNG oder WebP · maximal 20 MB</small>
             <input ref={profileInputRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void uploadAvatar(event)} />
           </div>
