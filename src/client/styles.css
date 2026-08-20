@@ -424,7 +424,7 @@ h1, h2, h3, p { margin-top: 0; }
 @keyframes fade-in { from { opacity: 0; } }
 .modal { width: min(720px, calc(100vw - 70px)); max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px); display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,.55); border-radius: 17px; background: white; box-shadow: var(--shadow-lg); overflow: hidden; animation: modal-in 160ms ease-out; }
 @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.99); } }
-.modal--wide { width: min(940px, calc(100vw - 80px)); }
+.modal--wide { width: min(940px, calc(100vw - 80px)); height: min(760px, calc(100vh - 60px)); height: min(760px, calc(100dvh - 60px)); }
 .modal--small { width: 510px; }
 .modal--user-management { width: min(820px, calc(100vw - 70px)); }
 .modal--confirm { width: 420px; padding: 28px; text-align: center; }
@@ -542,7 +542,7 @@ h1, h2, h3, p { margin-top: 0; }
 .stats__adjust button { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-700); background: white; }
 .stats__adjust button:hover:not(:disabled) { color: var(--primary); border-color: #c8ccf5; background: #f5f5ff; }
 .stats__adjust button:disabled { opacity: .5; }
-.modal--changes { width: min(800px, calc(100vw - 70px)); }
+.modal--changes { width: min(800px, calc(100vw - 70px)); height: min(760px, calc(100vh - 60px)); height: min(760px, calc(100dvh - 60px)); }
 .changes__body { padding: 20px 23px; }
 .changes__composer { margin-bottom: 18px; padding: 16px; gap: 11px; border: 1px solid #dfe2fa; border-radius: 12px; background: #f9f9ff; }
 .changes__composer-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
@@ -973,6 +973,7 @@ h1, h2, h3, p { margin-top: 0; }
   .modal-backdrop { padding: 12px; }
   .modal, .modal--wide, .modal--small, .modal--user-management, .modal--changes, .modal--confirm { width: calc(100vw - 24px); }
   .modal { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  .modal--wide, .modal--changes { height: calc(100vh - 24px); height: calc(100dvh - 24px); }
   .modal__header { min-height: 72px; padding: 16px; }
   .modal__footer { padding: 10px 16px; }
   .modal__body { padding: 16px; }
