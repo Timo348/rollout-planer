@@ -42,6 +42,17 @@ export async function openDatabase(connectionString: string): Promise<Database> 
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS change_notice_mails_enabled BOOLEAN");
   // Bestand älterer Versionen: manuellen Statistik-Korrekturwert nachrüsten.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS stats_adjustment INTEGER");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS assignment_stats_adjustments (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      delta INTEGER NOT NULL,
+      adjusted_at TEXT NOT NULL
+    )
+  `);
+  await pool.query(
+    "CREATE INDEX IF NOT EXISTS assignment_stats_adjustments_adjusted_at_idx ON assignment_stats_adjustments (adjusted_at)",
+  );
   // Bestand älterer Versionen: Vorbereitungsrolle nachrüsten.
   await pool.query(
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_preparer BOOLEAN NOT NULL DEFAULT FALSE",
@@ -304,6 +315,32 @@ export async function archiveAppointments(
 export interface AssignmentCount {
   count: number;
   displayName: string | null;
+}
+
+/** Zählt zeitlich zuordenbare manuelle Statistik-Korrekturen pro Profil. */
+export async function countStatsAdjustments(
+  db: Queryable,
+  from: string | null,
+  to: string | null,
+): Promise<Map<string, number>> {
+  const conditions: string[] = [];
+  const values: string[] = [];
+  if (from) {
+    values.push(`${from}T00:00:00.000Z`);
+    conditions.push(`adjusted_at >= $${values.length}`);
+  }
+  if (to) {
+    values.push(`${to}T23:59:59.999Z`);
+    conditions.push(`adjusted_at <= $${values.length}`);
+  }
+  const result = await db.query(
+    `SELECT user_id, COALESCE(SUM(delta), 0) AS total
+     FROM assignment_stats_adjustments
+     ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+     GROUP BY user_id`,
+    values,
+  );
+  return new Map(result.rows.map((row) => [String(row.user_id), Number(row.total)]));
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   archiveAppointments,
   countAssignmentsByAssignee,
   countCompletedAppointmentsByDay,
+  countStatsAdjustments,
   hasUnreadChangeNotices,
   insertChangeNotice,
   openDatabase,
@@ -330,12 +331,15 @@ export class StateStore {
     return this.enqueue(async () => {
       const index = this.state.users.findIndex((entry) => entry.id === id);
       if (index < 0) throw new NotFoundError("Das Profil wurde nicht gefunden.");
+      await this.database().query(
+        "INSERT INTO assignment_stats_adjustments (user_id, delta, adjusted_at) VALUES ($1, $2, $3)",
+        [id, delta, this.now().toISOString()],
+      );
+      const adjustments = await countStatsAdjustments(this.database(), null, null);
       const updated = {
         ...this.state.users[index]!,
-        statsAdjustment: (this.state.users[index]!.statsAdjustment ?? 0) + delta,
+        statsAdjustment: (this.state.users[index]!.statsAdjustment ?? 0) + (adjustments.get(id) ?? 0),
       };
-      this.state.users[index] = updated;
-      await this.persist();
       return structuredClone(updated);
     });
   }
@@ -343,10 +347,13 @@ export class StateStore {
   async getAssignmentStats(from: string | null, to: string | null): Promise<AssignmentStatsEntry[]> {
     return this.enqueue(async () => {
       const counts = await countAssignmentsByAssignee(this.database(), from, to);
+      const timedAdjustments = await countStatsAdjustments(this.database(), from, to);
       const entries = new Map<string, AssignmentStatsEntry>();
       for (const user of this.state.users) {
         const appointments = counts.get(user.id)?.count ?? 0;
-        const adjustment = user.statsAdjustment ?? 0;
+        // Alte Gesamtkorrekturen hatten keinen Zeitstempel und zählen nur in der Gesamtansicht.
+        const adjustment = (from === null && to === null ? user.statsAdjustment ?? 0 : 0)
+          + (timedAdjustments.get(user.id) ?? 0);
         entries.set(user.id, {
           userId: user.id,
           displayName: user.displayName,

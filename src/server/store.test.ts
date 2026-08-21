@@ -343,7 +343,7 @@ describe("StateStore", () => {
     });
   });
 
-  it("zählt durchgeführte Termine pro Profil und wendet manuelle Korrekturen an", async () => {
+  it("zählt manuelle Korrekturen nur im jeweiligen Zeitraum", async () => {
     const legacy = await temporaryLegacyFile({
       schemaVersion: 4,
       users: [user("oidc:alice"), user("oidc:bob")],
@@ -354,7 +354,8 @@ describe("StateStore", () => {
         { id: "a4", date: "2026-07-10", startTime: "10:00", endTime: "11:00", name: "Frei", assigneeId: null, createdBy: "oidc:alice", createdAt: "2026-07-09T08:00:00.000Z", updatedAt: "2026-07-09T08:00:00.000Z", version: 1 },
       ],
     });
-    const store = makeStore(() => new Date("2026-07-15T08:00:00.000Z"), false, legacy);
+    let now = new Date("2026-07-15T08:00:00.000Z");
+    const store = makeStore(() => now, false, legacy);
     await store.initialize();
 
     // Gelöschte (also nicht durchgeführte) Termine fließen nicht in die Zählung ein.
@@ -374,11 +375,19 @@ describe("StateStore", () => {
     expect(ranged.find((entry) => entry.userId === "oidc:alice")?.appointments).toBe(2);
     expect(ranged.find((entry) => entry.userId === "oidc:bob")?.appointments).toBe(0);
 
+    now = new Date("2026-07-01T08:00:00.000Z");
+    await store.adjustStatsAdjustment("oidc:bob", 4);
+    now = new Date("2026-07-15T08:00:00.000Z");
     const adjusted = await store.adjustStatsAdjustment("oidc:alice", 3);
     expect(adjusted.statsAdjustment).toBe(3);
     await store.upsertUser(user("oidc:alice"));
     const afterRelogin = await store.getAssignmentStats(null, null);
     expect(afterRelogin.find((entry) => entry.userId === "oidc:alice")?.total).toBe(5);
+    expect(afterRelogin.find((entry) => entry.userId === "oidc:bob")?.total).toBe(5);
+
+    const afterRecentAdjustment = await store.getAssignmentStats("2026-07-05", "2026-07-15");
+    expect(afterRecentAdjustment.find((entry) => entry.userId === "oidc:alice")).toMatchObject({ adjustment: 3, total: 5 });
+    expect(afterRecentAdjustment.find((entry) => entry.userId === "oidc:bob")).toMatchObject({ adjustment: 0, total: 0 });
   });
 
   it("liefert öffentliche Dashboards datenschutzfreundlich und zählt nur abgelaufene Termine", async () => {
