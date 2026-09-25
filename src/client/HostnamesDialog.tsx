@@ -1,5 +1,5 @@
-import { Check, ClipboardCheck, LoaderCircle, Send, X } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { Check, ClipboardCheck, LoaderCircle, Plus, Send, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { OldDeviceHostname } from "../shared/contracts";
 import { api } from "./api";
 
@@ -26,6 +26,8 @@ export function HostnamesDialog({
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [preparerFormOpen, setPreparerFormOpen] = useState(false);
+  const preparerFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!isPreparer) return;
@@ -50,6 +52,10 @@ export function HostnamesDialog({
     };
   }, [isPreparer]);
 
+  useEffect(() => {
+    if (preparerFormOpen) preparerFormRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [preparerFormOpen]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!hostname.trim()) return;
@@ -57,7 +63,10 @@ export function HostnamesDialog({
     setError("");
     setMessage("");
     try {
-      await api.createHostname(hostname, name);
+      const result = await api.createHostname(hostname, name);
+      if (isPreparer) {
+        setEntries((current) => [result.hostname, ...(current ?? []).filter((entry) => entry.id !== result.hostname.id)]);
+      }
       setHostname("");
       setName("");
       setMessage("Der Hostname wurde gespeichert.");
@@ -88,6 +97,41 @@ export function HostnamesDialog({
   };
 
   const processedCount = entries?.filter((entry) => entry.isProcessed).length ?? 0;
+  const orderedEntries = entries ? [...entries].sort((left, right) => Number(left.isProcessed) - Number(right.isProcessed)) : null;
+
+  const hostnameForm = (
+    <form ref={isPreparer ? preparerFormRef : undefined} className="hostnames__form" onSubmit={(event) => void submit(event)}>
+      <label className="field">
+        <span>Hostname</span>
+        <input
+          type="text"
+          value={hostname}
+          maxLength={253}
+          placeholder="DIRXXXXX"
+          autoComplete="off"
+          required
+          onChange={(event) => setHostname(event.target.value)}
+        />
+      </label>
+      <label className="field">
+        <span>Name <small>(optional)</small></span>
+        <input
+          type="text"
+          value={name}
+          maxLength={120}
+          placeholder="Zum Beispiel: Max Mustermann"
+          autoComplete="name"
+          onChange={(event) => setName(event.target.value)}
+        />
+      </label>
+      {error && !isPreparer && <div className="alert alert--error" role="alert">{error}</div>}
+      {message && <div className="alert alert--success" role="status"><Check size={15} />{message}</div>}
+      <button className="button button--primary" type="submit" disabled={busy || !hostname.trim()}>
+        {busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}
+        Absenden
+      </button>
+    </form>
+  );
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -106,11 +150,11 @@ export function HostnamesDialog({
             {error && <div className="alert alert--error hostnames__error" role="alert">{error}</div>}
             {loading ? (
               <div className="hostnames__empty"><LoaderCircle className="spin" size={18} />Hostnames werden geladen …</div>
-            ) : !entries || entries.length === 0 ? (
+            ) : !orderedEntries || orderedEntries.length === 0 ? (
               <div className="hostnames__empty"><ClipboardCheck size={18} />Es wurden noch keine Hostnames eingetragen.</div>
             ) : (
               <div className="hostnames__list">
-                {entries.map((entry) => {
+                {orderedEntries.map((entry) => {
                   const rowBusy = busyIds.has(entry.id);
                   return (
                     <label className={entry.isProcessed ? "hostnames__item is-processed" : "hostnames__item"} key={entry.id}>
@@ -133,6 +177,7 @@ export function HostnamesDialog({
                 })}
               </div>
             )}
+            {preparerFormOpen && hostnameForm}
           </div>
         ) : (
           <div className="modal__body hostnames__body">
@@ -140,43 +185,30 @@ export function HostnamesDialog({
               <div><strong>Altgerät melden</strong><small>Hostname für die spätere Austragung eintragen.</small></div>
               <p>Trage den Hostname des Altgeräts ein. Der Name ist optional.</p>
             </div>
-            <form className="hostnames__form" onSubmit={(event) => void submit(event)}>
-              <label className="field">
-                <span>Hostname</span>
-                <input
-                  type="text"
-                  value={hostname}
-                  maxLength={253}
-                  placeholder="DIRXXXXX"
-                  autoComplete="off"
-                  required
-                  onChange={(event) => setHostname(event.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>Name <small>(optional)</small></span>
-                <input
-                  type="text"
-                  value={name}
-                  maxLength={120}
-                  placeholder="Zum Beispiel: Max Mustermann"
-                  autoComplete="name"
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </label>
-              {error && <div className="alert alert--error" role="alert">{error}</div>}
-              {message && <div className="alert alert--success" role="status"><Check size={15} />{message}</div>}
-              <button className="button button--primary" type="submit" disabled={busy || !hostname.trim()}>
-                {busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}
-                Absenden
-              </button>
-            </form>
+            {hostnameForm}
           </div>
         )}
 
         <footer className="modal__footer">
           <span className="modal__summary">{isPreparer ? "Offene Hostnames stehen oben in der Liste." : "Vorbereiter sehen den Eintrag anschließend in ihrer Liste."}</span>
-          <button className="button button--ghost" type="button" onClick={onClose}>Schließen</button>
+          <div className="hostnames__footer-actions">
+            {isPreparer && (
+              <button
+                className="button button--ghost"
+                type="button"
+                aria-expanded={preparerFormOpen}
+                onClick={() => {
+                  setPreparerFormOpen((open) => !open);
+                  setError("");
+                  setMessage("");
+                }}
+              >
+                {preparerFormOpen ? <X size={16} /> : <Plus size={16} />}
+                {preparerFormOpen ? "Eingabe schließen" : "Hostname eintragen"}
+              </button>
+            )}
+            <button className="button button--ghost" type="button" onClick={onClose}>Schließen</button>
+          </div>
         </footer>
       </section>
     </div>

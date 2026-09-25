@@ -555,7 +555,7 @@ h1, h2, h3, p { margin-top: 0; }
 .hostnames__form .button { align-self: flex-end; }
 .hostnames__error { margin-bottom: 12px; }
 .hostnames__list { display: flex; flex-direction: column; gap: 8px; }
-.hostnames__item { position: relative; min-height: 72px; padding: 11px 12px; display: grid; grid-template-columns: 22px 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 11px; background: #fcfdfe; cursor: pointer; transition: border-color 130ms ease, background 130ms ease; }
+.hostnames__item { position: relative; min-height: 72px; padding: 11px 12px; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 11px; background: #fcfdfe; cursor: pointer; transition: border-color 130ms ease, background 130ms ease; }
 .hostnames__item:hover { border-color: #c8ccf5; background: #fafaff; }
 .hostnames__item.is-processed { border-color: #bce7d9; background: #f2fcf8; }
 .hostnames__item > input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -563,12 +563,13 @@ h1, h2, h3, p { margin-top: 0; }
 .hostnames__item-check { width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #cbd1de; border-radius: 8px; color: white; background: white; }
 .hostnames__item.is-processed .hostnames__item-check { border-color: var(--teal); background: var(--teal); }
 .hostnames__item-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.hostnames__item-copy strong { overflow: hidden; color: var(--ink-900); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.hostnames__item-copy strong { color: var(--ink-900); font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
 .hostnames__item-copy > span { overflow: hidden; color: var(--ink-700); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .hostnames__item-copy small { overflow: hidden; color: var(--ink-400); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.hostnames__item-status { padding: 5px 8px; border-radius: 999px; color: #a36d1b; background: var(--amber-soft); font-size: 8px; font-weight: 850; text-transform: uppercase; white-space: nowrap; }
+.hostnames__item-status { padding: 3px 6px; border-radius: 999px; color: #a36d1b; background: var(--amber-soft); font-size: 7px; font-weight: 850; text-transform: uppercase; white-space: nowrap; }
 .hostnames__item.is-processed .hostnames__item-status { color: #14785c; background: var(--teal-soft); }
 .hostnames__empty { min-height: 130px; padding: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--line); border-radius: 11px; color: var(--ink-400); font-size: 10px; }
+.hostnames__footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .modal--changes { width: min(800px, calc(100vw - 70px)); height: min(760px, calc(100vh - 60px)); height: min(760px, calc(100dvh - 60px)); }
 .changes__body { padding: 20px 23px; }
 .changes__composer { margin-bottom: 18px; padding: 16px; gap: 11px; border: 1px solid #dfe2fa; border-radius: 12px; background: #f9f9ff; }
@@ -1017,8 +1018,11 @@ h1, h2, h3, p { margin-top: 0; }
   .hostnames__intro p { text-align: left; }
   .hostnames__form { padding: 16px; }
   .hostnames__form .button { align-self: stretch; }
-  .hostnames__item { grid-template-columns: 22px 32px minmax(0, 1fr); }
-  .hostnames__item-status { grid-column: 3; justify-self: start; }
+  .hostnames__item { grid-template-columns: 32px minmax(0, 1fr); }
+  .hostnames__item-status { grid-column: 2; justify-self: start; }
+  .modal--hostnames .modal__footer { align-items: stretch; flex-direction: column; gap: 8px; }
+  .hostnames__footer-actions { width: 100%; flex-wrap: wrap; }
+  .hostnames__footer-actions .button { flex: 1; justify-content: center; }
   .user-management__intro { flex-direction: column; align-items: flex-start; gap: 8px; }
   .user-management__intro p { text-align: left; }
   .user-management__row { grid-template-columns: 40px minmax(0, 1fr); }
