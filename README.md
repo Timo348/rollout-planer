@@ -24,6 +24,7 @@ Schlanke interne Desktop-Webanwendung für Windows-11-Rollout-Termine. Das Team 
 - Rückblick auf vergangene Tage über die Navigation: archivierte Termine inklusive Zuweisung pro Tag einsehen
 - Statistik mit Administrationsberechtigung (Authentik-Gruppe `rollout-planner-admin`) im Arbeitsbereich: durchgeführte Termine pro Person für die letzten 14 Tage, den aktuellen Monat oder insgesamt, mit manueller Plus/Minus-Korrektur; die Zählung aktualisiert sich automatisch mit der täglichen Archivierung
 - Änderungsmodul für alle Personen: Alle angemeldeten Personen veröffentlichen Meldungen mit bis zu 125 Wörtern; löschen darf sie nur die Administration. Nach 21 Tagen wechseln Meldungen automatisch von „Aktuelles“ nach „Allgemeines“, neue Meldungen werden pro Profil mit `!` markiert und bei konfiguriertem SMTP zusätzlich per E-Mail angekündigt
+- Hostname-Modul für Altgeräte: Alle Personen melden einen Hostname mit optionalem Namen; Personen mit Vorbereitungsrolle sehen die Einträge und markieren per Haken, sobald ein Hostname ausgetragen wurde
 - optionaler Punkt „Anleitung“ in der linken Navigation; das Ziel wird mit `GUIDE_URL` in `.env`/Compose konfiguriert und in einem neuen Tab geöffnet
 - mehrere frei benennbare, öffentliche Termin-Dashboards unter `/public/<kurzlink>` mit eigener Datenschutz-, Zeitraum-, Trend-, Aktualisierungs-, Standardmodus-, Zoom- und 14-Tage-Podium-Konfiguration; das Podium zeigt ausschließlich die Profilbilder der Top 3, `/public` zeigt das festgelegte Standard-Dashboard und nutzt auf TV-Bildschirmen die volle Fläche ohne Seiten-Scrollbar
 - responsive Bedienung für Desktop, iPad/Tablet und Smartphone einschließlich mobiler Navigation, scrollbarer Terminplanung und angepasster Dialoge
@@ -123,6 +124,7 @@ Gespeichert werden:
 - Termine für die fünf angezeigten Planungstage (Tabelle `appointments`)
 - Profile von Personen, die sich mindestens einmal erfolgreich angemeldet haben (Tabelle `users`)
 - veröffentlichte Änderungsmeldungen und der profilspezifische Lesestatus (Tabellen `change_notices` und `change_notice_reads`)
+- gemeldete Altgeräte-Hostnames inklusive optionalem Namen und Austragungsstatus (Tabelle `old_device_hostnames`)
 - Konfigurationen der öffentlichen Termin-Dashboards (Tabelle `public_dashboards`)
 - Profilbilder im Unterordner `avatars` des Docker-Volumes `rollout-planer-data` (`/app/data`)
 

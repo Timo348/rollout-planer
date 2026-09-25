@@ -100,6 +100,19 @@ const changeNoticeSchema = z.object({
       message: `Eine Änderung darf maximal ${CHANGE_NOTICE_MAX_WORDS} Wörter enthalten.`,
     }),
 });
+const oldDeviceHostnameSchema = z.object({
+  hostname: z
+    .string()
+    .trim()
+    .min(1, "Bitte einen Hostname eintragen.")
+    .max(253, "Der Hostname ist zu lang.")
+    .regex(
+      /^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/,
+      "Der Hostname darf nur Buchstaben, Zahlen, Punkte und Bindestriche enthalten.",
+    ),
+  name: z.string().trim().max(120, "Der Name ist zu lang.").optional(),
+});
+const oldDeviceHostnameStatusSchema = z.object({ isProcessed: z.boolean() });
 
 const publicDashboardSettingsSchema = z.object({
   name: z.string().trim().min(1, "Bitte einen internen Namen eintragen.").max(80),
@@ -580,6 +593,41 @@ export async function buildApp(
       const id = z.string().regex(/^\d+$/).parse((request.params as { id?: string }).id);
       await store.deleteChangeNotice(id);
       return reply.code(204).send();
+    },
+  );
+
+  app.get(
+    "/api/hostnames",
+    { preHandler: [authenticate, requirePreparer] },
+    async () => ({ hostnames: await store.listOldDeviceHostnames() }),
+  );
+
+  app.post(
+    "/api/hostnames",
+    { preHandler: [authenticate, verifyOrigin] },
+    async (request, reply) => {
+      const payload = oldDeviceHostnameSchema.parse(request.body);
+      const hostname = await store.createOldDeviceHostname(
+        payload.hostname,
+        payload.name || null,
+        request.currentPrincipal!.user,
+      );
+      return reply.code(201).send({ hostname });
+    },
+  );
+
+  app.patch(
+    "/api/hostnames/:id",
+    { preHandler: [authenticate, verifyOrigin, requirePreparer] },
+    async (request) => {
+      const id = z.string().regex(/^\d+$/).parse((request.params as { id?: string }).id);
+      const { isProcessed } = oldDeviceHostnameStatusSchema.parse(request.body);
+      const hostname = await store.setOldDeviceHostnameProcessed(
+        id,
+        isProcessed,
+        request.currentPrincipal!.user,
+      );
+      return { hostname };
     },
   );
 

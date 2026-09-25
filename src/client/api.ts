@@ -9,6 +9,7 @@ import type {
   ChangeNotice,
   ChangeNoticeLists,
   CreatePublicDashboardInput,
+  OldDeviceHostname,
   PublicDashboardResponse,
   PublicDashboardSettings,
   SessionResponse,
@@ -143,6 +144,18 @@ export const api = {
     }),
   deleteChange: (id: string) =>
     request<void>(`/api/changes/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  listHostnames: () =>
+    request<{ hostnames: OldDeviceHostname[] }>("/api/hostnames"),
+  createHostname: (hostname: string, name?: string) =>
+    request<{ hostname: OldDeviceHostname }>("/api/hostnames", {
+      method: "POST",
+      body: JSON.stringify({ hostname, ...(name ? { name } : {}) }),
+    }),
+  setHostnameProcessed: (id: string, isProcessed: boolean) =>
+    request<{ hostname: OldDeviceHostname }>(`/api/hostnames/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ isProcessed }),
+    }),
   getPublicDashboards: () =>
     request<{ dashboards: PublicDashboardSettings[] }>("/api/admin/public-dashboards"),
   createPublicDashboard: (payload: CreatePublicDashboardInput) =>

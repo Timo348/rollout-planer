@@ -22,6 +22,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Server,
   Send,
   Sun,
   Trash2,
@@ -36,8 +37,11 @@ import { CHANGE_NOTICE_MAX_WORDS } from "../shared/contracts";
 import type { AppUser, Appointment, AppointmentHistoryEntry, AssignmentStatsEntry, AssignmentStatsPeriod, BootstrapResponse, ChangeNotice, ChangeNoticeLists, FixedSlot } from "../shared/contracts";
 import { api, ApiError } from "./api";
 import { ConfirmDialog, CreateDialog, EditDialog } from "./Dialogs";
+import { HostnamesDialog } from "./HostnamesDialog";
 import { PublicDashboardAdmin } from "./PublicDashboardAdmin";
 import { useTheme } from "./theme";
+
+export { HostnamesDialog } from "./HostnamesDialog";
 
 function formatDateLong(date: string): string {
   return new Intl.DateTimeFormat("de-DE", {
@@ -825,6 +829,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
+  const [hostnamesOpen, setHostnamesOpen] = useState(false);
   const [publicDashboardsOpen, setPublicDashboardsOpen] = useState(false);
   const [agendaBusy, setAgendaBusy] = useState(false);
   const [preferencesBusy, setPreferencesBusy] = useState(false);
@@ -1095,6 +1100,9 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
             <Megaphone size={18} /><span>Änderungen</span>
             {data.hasUnreadChanges && <span className="sidebar-nav__alert" aria-label="Neue Änderung">!</span>}
           </button>
+          <button className="sidebar-nav__item" type="button" onClick={() => { setHostnamesOpen(true); setNavOpen(false); }}>
+            <Server size={18} /><span>Hostnames</span>
+          </button>
           {data.guideUrl && (
             <a className="sidebar-nav__item" href={data.guideUrl} target="_blank" rel="noreferrer noopener">
               <BookOpenText size={18} /><span>Anleitung</span><ExternalLink className="sidebar-nav__external" size={13} />
@@ -1254,6 +1262,7 @@ export function Dashboard({ sessionUser, onLoggedOut }: { sessionUser: AppUser; 
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
       {statsOpen && data.permissions.manageUsers && <StatsDialog onClose={() => setStatsOpen(false)} />}
       {changesOpen && <ChangesDialog canDelete={data.permissions.manageUsers} onClose={() => setChangesOpen(false)} onViewed={markChangesViewed} />}
+      {hostnamesOpen && <HostnamesDialog isPreparer={data.currentUser.isPreparer} onClose={() => setHostnamesOpen(false)} />}
       {publicDashboardsOpen && data.permissions.manageUsers && <PublicDashboardAdmin onClose={() => setPublicDashboardsOpen(false)} onUnauthorized={onLoggedOut} />}
       {confirm && <ConfirmDialog title={confirm.title} message={confirm.message} destructive={confirm.destructive} busy={confirmBusy} onCancel={() => setConfirm(null)} onConfirm={() => void runConfirmed()} />}
       {toast && <div className={`toast toast--${toast.tone}`} role="status">{toast.tone === "success" ? <Check size={17} /> : <X size={17} />}{toast.message}</div>}

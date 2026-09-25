@@ -2,7 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AppUser, Appointment } from "../shared/contracts";
-import { AppointmentCard, ChangesDialog, ProfileMailPreferences, UserManagementDialog } from "./Dashboard";
+import { AppointmentCard, ChangesDialog, HostnamesDialog, ProfileMailPreferences, UserManagementDialog } from "./Dashboard";
 
 Object.assign(globalThis, { React });
 
@@ -101,6 +101,30 @@ describe("Änderungsmodul", () => {
     expect(markup).toContain("Änderung veröffentlichen");
     expect(markup).toContain("0/125 Wörter");
     expect(markup).toContain("Änderungen werden geladen");
+  });
+});
+
+describe("Hostname-Modul für Altgeräte", () => {
+  it("zeigt normalen Benutzern das Hostname-Formular mit optionalem Namen", () => {
+    const markup = renderToStaticMarkup(React.createElement(HostnamesDialog, {
+      isPreparer: false,
+      onClose: vi.fn(),
+    }));
+
+    expect(markup).toContain("Altgerät melden");
+    expect(markup).toContain('placeholder="DIRXXXXX"');
+    expect(markup).toContain("Name <small>(optional)</small>");
+    expect(markup).toContain("Absenden");
+  });
+
+  it("zeigt Vorbereitern die Liste mit Statuskontrolle", () => {
+    const markup = renderToStaticMarkup(React.createElement(HostnamesDialog, {
+      isPreparer: true,
+      onClose: vi.fn(),
+    }));
+
+    expect(markup).toContain("Auszutragende Altgeräte");
+    expect(markup).toContain("Hostnames werden geladen");
   });
 });
 

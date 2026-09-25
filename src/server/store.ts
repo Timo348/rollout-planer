@@ -11,6 +11,7 @@ import type {
   ChangeNotice,
   ChangeNoticeLists,
   CreatePublicDashboardInput,
+  OldDeviceHostname,
   PublicDashboardResponse,
   PublicDashboardSettings,
   UpdatePublicDashboardInput,
@@ -22,11 +23,14 @@ import {
   countStatsAdjustments,
   hasUnreadChangeNotices,
   insertChangeNotice,
+  insertOldDeviceHostname,
   openDatabase,
   readChangeNotices,
   readHistory,
+  readOldDeviceHostnames,
   removeChangeNotice,
   removeChangeNoticeRead,
+  updateOldDeviceHostnameProcessed,
   type ArchiveRecord,
   type Database,
 } from "./db.js";
@@ -395,6 +399,51 @@ export class StateStore {
       if (!await removeChangeNotice(this.database(), id)) {
         throw new NotFoundError("Die Änderungsmeldung wurde nicht gefunden.");
       }
+    });
+  }
+
+  async createOldDeviceHostname(
+    hostname: string,
+    name: string | null,
+    author: AppUser,
+  ): Promise<OldDeviceHostname> {
+    return this.enqueue(async () => {
+      try {
+        return await insertOldDeviceHostname(
+          this.database(),
+          hostname,
+          name,
+          author,
+          this.now().toISOString(),
+        );
+      } catch (error) {
+        if ((error as { code?: string }).code === "23505") {
+          throw new StateConflictError("Dieser Hostname wurde bereits eingetragen.");
+        }
+        throw error;
+      }
+    });
+  }
+
+  async listOldDeviceHostnames(): Promise<OldDeviceHostname[]> {
+    return this.enqueue(async () => readOldDeviceHostnames(this.database()));
+  }
+
+  async setOldDeviceHostnameProcessed(
+    id: string,
+    isProcessed: boolean,
+    actor: AppUser,
+  ): Promise<OldDeviceHostname> {
+    return this.enqueue(async () => {
+      const updated = await updateOldDeviceHostnameProcessed(
+        this.database(),
+        id,
+        isProcessed,
+        actor,
+        this.now().toISOString(),
+      );
+      if (!updated) throw new NotFoundError("Der Hostname wurde nicht gefunden.");
+      return updated;
     });
   }
 

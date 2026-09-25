@@ -771,6 +771,103 @@ describe("Rollout API", () => {
     expect((await store.viewChangeNotices(author.id)).current).toHaveLength(1);
   });
 
+  it("erlaubt Hostname-Meldungen für alle und das Abhaken nur mit Vorbereitungsrolle", async () => {
+    const config = await testConfig(true);
+    const store = new StateStore(
+      config.databaseUrl,
+      () => new Date("2026-08-18T12:30:00.000Z"),
+      true,
+      config.dataFile,
+    );
+    await store.initialize();
+    const reporter = oidcUser("oidc:reporter", "reporter");
+    const preparer = { ...oidcUser("oidc:preparer", "preparer"), isPreparer: true };
+    await store.upsertUser(reporter);
+    await store.upsertUser(preparer);
+    const app = await buildApp(config, store);
+    apps.push(app);
+
+    const reporterCookie = await sessionCookie(config, {
+      user: reporter,
+      permissions: { manageUsers: false },
+    });
+    const preparerCookie = await sessionCookie(config, {
+      user: preparer,
+      permissions: { manageUsers: false },
+    });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/hostnames",
+      headers: {
+        cookie: reporterCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { hostname: "DIR12345", name: "Max Mustermann" },
+    });
+    expect(created.statusCode).toBe(201);
+    const entry = created.json<{ hostname: { id: string; hostname: string; isProcessed: boolean } }>().hostname;
+    expect(entry).toMatchObject({ hostname: "DIR12345", isProcessed: false });
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/api/hostnames",
+      headers: {
+        cookie: reporterCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { hostname: "dir12345" },
+    });
+    expect(duplicate.statusCode).toBe(409);
+
+    const reporterList = await app.inject({
+      method: "GET",
+      url: "/api/hostnames",
+      headers: { cookie: reporterCookie },
+    });
+    expect(reporterList.statusCode).toBe(403);
+
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/hostnames",
+      headers: { cookie: preparerCookie },
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.json<{ hostnames: Array<{ id: string; name: string | null }> }>().hostnames).toMatchObject([
+      { id: entry.id, name: "Max Mustermann" },
+    ]);
+
+    const forbiddenUpdate = await app.inject({
+      method: "PATCH",
+      url: `/api/hostnames/${entry.id}`,
+      headers: {
+        cookie: reporterCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { isProcessed: true },
+    });
+    expect(forbiddenUpdate.statusCode).toBe(403);
+
+    const updated = await app.inject({
+      method: "PATCH",
+      url: `/api/hostnames/${entry.id}`,
+      headers: {
+        cookie: preparerCookie,
+        origin: "http://localhost:8080",
+        "content-type": "application/json",
+      },
+      payload: { isProcessed: true },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json<{ hostname: { isProcessed: boolean; processedByName: string } }>().hostname).toMatchObject({
+      isProcessed: true,
+      processedByName: "preparer Beispiel",
+    });
+  });
+
   it("stellt mehrere öffentliche Dashboards bereit und schützt ihre Verwaltung", async () => {
     const app = await createApp();
     const anonymous = await app.inject({ method: "GET", url: "/api/public/dashboard" });

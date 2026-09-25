@@ -53,6 +53,19 @@ export interface ChangeNoticeLists {
   general: ChangeNotice[];
 }
 
+export interface OldDeviceHostname {
+  id: string;
+  hostname: string;
+  name: string | null;
+  submittedBy: string;
+  submittedByName: string;
+  submittedAt: string;
+  isProcessed: boolean;
+  processedAt: string | null;
+  processedBy: string | null;
+  processedByName: string | null;
+}
+
 export interface Appointment {
   id: string;
   date: string;

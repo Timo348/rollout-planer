@@ -6,6 +6,7 @@ import type {
   AppUser,
   ChangeNotice,
   ChangeNoticeLists,
+  OldDeviceHostname,
 } from "../shared/contracts.js";
 
 export type Database = pg.Pool;
@@ -92,6 +93,24 @@ export async function openDatabase(connectionString: string): Promise<Database> 
     )
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS old_device_hostnames (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      hostname TEXT NOT NULL,
+      name TEXT,
+      submitted_by TEXT NOT NULL,
+      submitted_by_name TEXT NOT NULL,
+      submitted_at TEXT NOT NULL,
+      is_processed BOOLEAN NOT NULL DEFAULT FALSE,
+      processed_at TEXT,
+      processed_by TEXT,
+      processed_by_name TEXT
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS old_device_hostnames_hostname_idx
+    ON old_device_hostnames (LOWER(hostname))
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS public_dashboards (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -156,6 +175,69 @@ function mapChangeNotice(row: Record<string, unknown>): ChangeNotice {
     publishedBy: String(row.published_by),
     publishedByName: String(row.published_by_name),
   };
+}
+
+function mapOldDeviceHostname(row: Record<string, unknown>): OldDeviceHostname {
+  return {
+    id: String(row.id),
+    hostname: String(row.hostname),
+    name: row.name != null ? String(row.name) : null,
+    submittedBy: String(row.submitted_by),
+    submittedByName: String(row.submitted_by_name),
+    submittedAt: String(row.submitted_at),
+    isProcessed: Boolean(row.is_processed),
+    processedAt: row.processed_at != null ? String(row.processed_at) : null,
+    processedBy: row.processed_by != null ? String(row.processed_by) : null,
+    processedByName: row.processed_by_name != null ? String(row.processed_by_name) : null,
+  };
+}
+
+export async function insertOldDeviceHostname(
+  db: Queryable,
+  hostname: string,
+  name: string | null,
+  author: AppUser,
+  submittedAt: string,
+): Promise<OldDeviceHostname> {
+  const result = await db.query(
+    `INSERT INTO old_device_hostnames (
+       hostname, name, submitted_by, submitted_by_name, submitted_at
+     ) VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [hostname, name, author.id, author.displayName, submittedAt],
+  );
+  return mapOldDeviceHostname(result.rows[0]!);
+}
+
+export async function readOldDeviceHostnames(
+  db: Queryable,
+): Promise<OldDeviceHostname[]> {
+  const result = await db.query(
+    `SELECT *
+     FROM old_device_hostnames
+     ORDER BY is_processed ASC, submitted_at DESC, id DESC`,
+  );
+  return result.rows.map((row) => mapOldDeviceHostname(row));
+}
+
+export async function updateOldDeviceHostnameProcessed(
+  db: Queryable,
+  id: string,
+  isProcessed: boolean,
+  actor: AppUser,
+  processedAt: string,
+): Promise<OldDeviceHostname | null> {
+  const result = await db.query(
+    `UPDATE old_device_hostnames
+     SET is_processed = $2,
+         processed_at = CASE WHEN $2 THEN $3 ELSE NULL END,
+         processed_by = CASE WHEN $2 THEN $4 ELSE NULL END,
+         processed_by_name = CASE WHEN $2 THEN $5 ELSE NULL END
+     WHERE id = $1
+     RETURNING *`,
+    [id, isProcessed, processedAt, actor.id, actor.displayName],
+  );
+  return result.rows[0] ? mapOldDeviceHostname(result.rows[0]) : null;
 }
 
 export async function hasUnreadChangeNotices(
